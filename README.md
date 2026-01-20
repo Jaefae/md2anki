@@ -10,4 +10,4 @@ A command-line application that takes a structured, markdown-like format and con
 - Tag Blocks
 - Nested tags
 - Multi-line cards
-- Deck assignment# Features
+- Deck assignment
