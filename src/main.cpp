@@ -1,6 +1,10 @@
 #include <iostream>
+#include "cli.h"
 
-int main(){
-	std::cout << "Hello from md2anki!" << std::endl;
-	return 0;
+int main(int argc, char* argv[]){
+  generateCfg(argc, argv);
+  return 0;
 }
+
+
+
