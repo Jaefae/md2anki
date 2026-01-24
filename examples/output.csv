@@ -1,0 +1,9 @@
+#separator:Comma
+#html:false
+#deck column:1
+#tags column:2
+#notetype column:3
+Example Deck,Tips,Basic,"Will the plugin support clozures?",Yes
+Example Deck,Tips,Cloze,"They will look something like {{c1:this}}."
+Example Deck,Tips Clozures,Cloze,"You can even have {{c1:multiple}} {{c2::clozures}}!"
+Example Deck,Tips Clozures,Cloze,"Single line cards default to {{c1::clozures}}."

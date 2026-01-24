@@ -1,0 +1,8 @@
+#separator:Comma
+#html:false
+#tags column:1
+#notetype column:2
+Tips,Basic,"Will the plugin support clozures?","Yes"
+Tips Clozures,Cloze,"They will look something like {{c1::this}}."
+Tips Clozures,Cloze,"You can even have {{c1::multiple}} {{c2::clozures}}!"
+Tips Clozures,Cloze,"Single line cards default to {{c1::clozures}}."
