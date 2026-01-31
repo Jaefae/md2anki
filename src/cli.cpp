@@ -10,19 +10,20 @@ namespace fs = std::filesystem;
 /// Returns true upon building config, false on error.
 bool Cfg::fromArgs(const int argc, char *argv[]) {
   // Validate input path
-  if (argc < 2) {
-    std::cout << "[ERROR] You must supply an input file or directory."
-              << std::endl;
+  if (argc < 4) {
+    std::cout << "[ERROR] You must supply input/output paths." << std::endl 
+              <<"\t[EXAMPLE] md2anki [inputPath] -o [outputPath]"<< std::endl;
     return false;
   } else {
     fs::path inPath = argv[1];
     std::error_code ec;
     bool malformed = true;
+
     // Check path/file existence
     if (!fs::exists(inPath, ec)) {
       std::cout << "[ERROR] File path does not exist. (" << inPath << ")"
                 << std::endl;
-      malformed = true;
+      return false;
     }
     // Check path extensions/dir
     if (inPath.has_extension() && inPath.extension() == ".md" ||
@@ -36,6 +37,7 @@ bool Cfg::fromArgs(const int argc, char *argv[]) {
       this->inputPath = inPath.string();
     }
   }
+
   // Collect Flags
   for (int i = 2; i < argc; i++) {
     std::string_view arg = argv[i];
@@ -54,12 +56,22 @@ bool Cfg::fromArgs(const int argc, char *argv[]) {
                   << outPath << " instead." << std::endl;
         return false;
       } else {
-        this->outputPath = outPath.string();
+        this->outputPath = outPath;
       }
-    // Unknow argument
+    // Failure states (Uknown args, no outpath, no inpath)
     } else {
-      std::cout << "[ERROR] Unknown argument: " << arg << std::endl;
-      return false;
+      bool isPath = (arg.ends_with(".csv") || arg.ends_with(".md"));
+      if(!isPath){
+        std::cout << "[ERROR] Unknown argument: " << arg << std::endl;
+        return false;
+      } else if(this->outputPath == ""){
+        std::cout << "[ERROR] No output path provided." 
+          << "(md2anki [inputPath] -o [outputPath])" << std::endl;
+        return false;
+      } else if(this->inputPath == ""){
+        std::cout << "[ERROR] No input path provided." 
+          << "(md2anki [inputPath] -o [outputPath])" << std::endl;
+      }
     }
   }
 #ifdef debug

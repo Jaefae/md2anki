@@ -1,11 +1,9 @@
 #pragma once
-#include <string>
-
-#define debug
+#include <filesystem>
 
 struct Cfg{
-  std::string inputPath;
-  std::string outputPath;
+  std::filesystem::path inputPath;
+  std::filesystem::path outputPath;
   bool strictWarn = false;
   bool deckAssigned = false;
   bool headerMode = false;
