@@ -4,13 +4,11 @@
 
 int main(int argc, char *argv[]) {
   Cfg cfg{};
-  bool res = cfg.fromArgs(argc, argv);
-#ifdef debug
-  if (res) {
-    std::cout << "Configuration built." << std::endl;
-#endif
-  } else {
+  bool success = cfg.fromArgs(argc, argv);
+  if (!success) {
     std::cout << "[EXIT] Could not build config." << std::endl;
+    return 1;
   }
+  std::cout << "[INFO] Configuration built." << std::endl;
   return 0;
 }

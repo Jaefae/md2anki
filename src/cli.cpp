@@ -1,87 +1,59 @@
 #include "cli.h"
 #include <filesystem>
 #include <iostream>
+#include <iomanip>
 #include <string>
 #include <system_error>
 #define debug
 
 namespace fs = std::filesystem;
 
+/// Checks basic file path validity and extension equality.
+bool validPath(const fs::path file, const std::string_view& extension){
+  if(file.has_filename() && file.has_extension() && file.extension() == extension){
+    return true;
+  }
+  return false;
+}
 /// Returns true upon building config, false on error.
 bool Cfg::fromArgs(const int argc, char *argv[]) {
-  // Validate input path
+  const std::string usage = "Usage: md2anki [inputPath] -o [outputPath] [additionalFlags]";
+  Cfg cfg;
+
+  // Atleast 4 arguments: [exe] [inputPath] -o [outputPath]
   if (argc < 4) {
-    std::cout << "[ERROR] You must supply input/output paths." << std::endl 
-              <<"\t[EXAMPLE] md2anki [inputPath] -o [outputPath]"<< std::endl;
+    std::cout << "[ERROR] Not enough arguments. " << usage << std::endl;
     return false;
-  } else {
-    fs::path inPath = argv[1];
-    std::error_code ec;
-    bool malformed = true;
-
-    // Check path/file existence
-    if (!fs::exists(inPath, ec)) {
-      std::cout << "[ERROR] File path does not exist. (" << inPath << ")"
-                << std::endl;
-      return false;
-    }
-    // Check path extensions/dir
-    if (inPath.has_extension() && inPath.extension() == ".md" ||
-        fs::is_directory(inPath, ec))
-      malformed = false;
-    if (malformed) {
-      std::cout << "[ERROR] Expected .md or directory, got " << inPath
-                << std::endl;
-      return false;
-    } else {
-      this->inputPath = inPath.string();
-    }
   }
 
-  // Collect Flags
-  for (int i = 2; i < argc; i++) {
-    std::string_view arg = argv[i];
-    if (arg == "-s" || arg == "--strict")
-      this->strictWarn = true;
-    else if (arg == "-h" || arg == "--header")
-      this->headerMode = true;
+  // Validate input path
+  if(!validPath(argv[1], ".md") || !fs::exists(argv[1])){
+    std::cout << "[ERROR] Input file is invalid or doesn't exist, expected .md (" << argv[1] << ")" << std::endl;
+    return false;
+  }
+  this->inputPath = argv[1];
 
-    // Validate output path.
-    else if (arg == "-o") {
-      if (i == argc)
-        std::cout << "[ERROR] You must supply an output path!" << std::endl;
-      else if (fs::path outPath = argv[i + 1];
-               !outPath.has_filename() || !(outPath.extension() == ".csv")) {
-        std::cout << "[ERROR] Expected an output path ending with .csv, got "
-                  << outPath << " instead." << std::endl;
-        return false;
-      } else {
-        this->outputPath = outPath;
-      }
-    // Failure states (Uknown args, no outpath, no inpath)
-    } else {
-      bool isPath = (arg.ends_with(".csv") || arg.ends_with(".md"));
-      if(!isPath){
-        std::cout << "[ERROR] Unknown argument: " << arg << std::endl;
-        return false;
-      } else if(this->outputPath == ""){
-        std::cout << "[ERROR] No output path provided." 
-          << "(md2anki [inputPath] -o [outputPath])" << std::endl;
-        return false;
-      } else if(this->inputPath == ""){
-        std::cout << "[ERROR] No input path provided." 
-          << "(md2anki [inputPath] -o [outputPath])" << std::endl;
-      }
+  // Validate output path
+  if(!(std::string(argv[2]) == "-o") || !validPath(argv[3], ".csv")){
+    std::cout << "[ERROR] Output path invalid, expected .csv (" << argv[3] << ")" << std::endl;
+    return false;
+  }
+  this->outputPath = argv[3];
+
+  // Collect remaining flags (-s --strict -h --header)
+  for(int i = 4; i < argc; i++){
+    const std::string_view arg = argv[i];
+    bool knownArg = false;
+    if(arg == "-s" || arg == "--strict") this->strictWarn = true;
+    else if(arg == "-h" || arg == "--header") this->headerMode = true;
+    else {
+      std::cout << "[ERROR] Unknown argument. " << usage << std::endl;
+      std::cout << "[INFO] Optional arguments: " << std::endl
+                << "\t-s, --strict" << std::setw(20) << ": Stop compilation on error instead of skipping." << std::endl
+                << "\t-h, --header" << std::setw(20) << ": Header mode, card types defined by header. See examples and README." << std::endl;
+      return false;
     }
   }
-#ifdef debug
-  if (strictWarn)
-    std::cout << "[INFO] Strict warning mode enabled! (Compilation will stop "
-                 "on error)"
-              << std::endl;
-  if (headerMode)
-    std::cout << "[INFO] Header mode enabled. (See GitHub README.md)"
-              << std::endl;
-#endif
+  // Return true for successful cfg on no error.
   return true;
 }
