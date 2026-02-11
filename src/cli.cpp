@@ -9,7 +9,7 @@
 namespace fs = std::filesystem;
 
 /// Checks basic file path validity and extension equality.
-bool validPath(const fs::path file, const std::string_view& extension){
+bool validPath(const fs::path& file, const std::string_view& extension){
   if(file.has_filename() && file.has_extension() && file.extension() == extension){
     return true;
   }
