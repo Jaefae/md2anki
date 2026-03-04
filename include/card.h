@@ -7,6 +7,7 @@
 enum class CardType {
   QA,
   Cloze,
+  QAR,
 };
 
 CardType getType(const std::string_view&);

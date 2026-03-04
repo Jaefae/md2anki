@@ -36,6 +36,11 @@ std::string Card::toCsv(){
       output << escapeCSV(front) << ',';
       output << escapeCSV(back);
       break;
+    case(CardType::QAR):
+      output << "Basic (and reversed card)" << ',';
+      output << escapeCSV(front) << ',';
+      output << escapeCSV(back) << ',';
+    break;
   }
   return output.str();
 };
