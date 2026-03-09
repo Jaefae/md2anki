@@ -40,7 +40,7 @@ std::string Card::toCsv(){
       output << "Basic (and reversed card)" << ',';
       output << escapeCSV(front) << ',';
       output << escapeCSV(back) << ',';
-    break;
+      break;
   }
   return output.str();
 };
