@@ -34,7 +34,7 @@ bool Cfg::fromArgs(const int argc, char *argv[]) {
   this->inputPath = argv[1];
 
   // Validate output path
-  if(!(std::string(argv[2]) == "-o") || !validPath(argv[3], ".csv")){
+  if(std::string(argv[2]) != "-o" || !validPath(argv[3], ".csv")){
     std::cout << "[ERROR] Output path invalid, expected .csv (" << argv[3] << ")" << std::endl;
     return false;
   }
@@ -45,12 +45,10 @@ bool Cfg::fromArgs(const int argc, char *argv[]) {
     const std::string_view arg = argv[i];
     bool knownArg = false;
     if(arg == "-s" || arg == "--strict") this->strictWarn = true;
-    else if(arg == "-h" || arg == "--header") this->headerMode = true;
     else {
       std::cout << "[ERROR] Unknown argument. " << usage << std::endl;
       std::cout << "[INFO] Optional arguments: " << std::endl
-                << "\t-s, --strict" << std::setw(20) << ": Stop compilation on error instead of skipping." << std::endl
-                << "\t-h, --header" << std::setw(20) << ": Header mode, card types defined by header. See examples and README." << std::endl;
+                << "\t-s, --strict" << std::setw(20) << ": Stop compilation on error instead of skipping." << std::endl;
       return false;
     }
   }
