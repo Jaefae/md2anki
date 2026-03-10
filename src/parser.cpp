@@ -43,7 +43,7 @@ bool parsePair(std::ifstream& ifile, std::string& back, size_t& lineNumber, std:
   std::string line;
   std::getline(ifile, line); // Next line
   lineNumber++;
-  if (!line.starts_with(expectedToken)) {
+  if (!toLower(line).starts_with(expectedToken)) {
     return false;
   }
   back = ltrim(line.substr(expectedToken.size()));
