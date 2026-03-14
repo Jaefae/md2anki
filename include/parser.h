@@ -1,7 +1,9 @@
 #pragma once
 #include "cli.h"
 #include "card.h"
+#include <fstream>
 #include <string>
+#include <string_view>
 #include <vector>
 
 
@@ -15,8 +17,7 @@ struct ParseResult {
   std::vector<ParseError> errors;
 };
 
-std::vector<std::string> collectCSV(std::string_view& csv);
-std::string toLower(std::string_view input);
+std::vector<std::string> collectCSV(const std::string_view& csv);
 size_t findNot(std::string_view input, char token);
 bool parsePair(std::ifstream& ifile, std::string& back, size_t& lineNumber, std::string expectedToken);
 bool toCloze(std::string& input);

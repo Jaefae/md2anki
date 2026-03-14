@@ -1,23 +1,9 @@
 #include "parser.h"
 #include "card.h"
+#include "util.h"
 #include <fstream>
 #include <iostream>
 #include <vector>
-
-std::string_view ltrim(std::string_view s) {
-  size_t start = 0;
-  while (start < s.size() && std::isspace(static_cast<unsigned char>(s[start]))) start++;
-  return s.substr(start);
-}
-
-std::string toLower(const std::string_view input) {
-  std::string lower;
-  lower.reserve(input.size());
-  for (const unsigned char c : input) {
-    lower += std::tolower(c);
-  }
-  return lower;
-}
 
 size_t findNot(const std::string_view input, char token) {
   for (size_t i{0}; i < input.size(); ++i) {
@@ -28,13 +14,19 @@ size_t findNot(const std::string_view input, char token) {
 
 std::vector<std::string> collectCSV(const std::string_view& csv) {
   std::vector<std::string> result;
-  std::string field;
   std::string_view csvStream = csv;
   size_t delimiter{0};
   while (delimiter != std::string_view::npos) {
     delimiter = csvStream.find(',');
-    result.push_back(static_cast<std::string>(csvStream.substr(0, delimiter)));
-    csvStream = ltrim(csvStream.substr(delimiter+1));
+    std::string_view token = csvStream.substr(0, delimiter);
+    token = trim(token);
+    if (!token.empty()) {
+      result.emplace_back(token);
+    }
+    if (delimiter == std::string_view::npos) {
+      break;
+    }
+    csvStream = csvStream.substr(delimiter + 1);
   }
   return result;
 }
