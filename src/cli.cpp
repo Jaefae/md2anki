@@ -1,4 +1,5 @@
 #include "cli.h"
+#include "parser.h"
 #include <filesystem>
 #include <iostream>
 #include <iomanip>
@@ -10,7 +11,7 @@ namespace fs = std::filesystem;
 
 /// Checks basic file path validity and extension equality.
 bool validPath(const fs::path& file, const std::string_view& extension){
-  if(file.has_filename() && file.has_extension() && file.extension() == extension){
+  if(file.has_filename() && file.has_extension() && toLower(file.extension().string()) == extension){
     return true;
   }
   return false;
