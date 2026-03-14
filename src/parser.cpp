@@ -42,6 +42,7 @@ std::vector<std::string> collectCSV(const std::string_view& csv) {
 bool parsePair(std::ifstream& ifile, std::string& back, size_t& lineNumber, std::string expectedToken) {
   std::string line;
   std::getline(ifile, line); // Next line
+  line = ltrim(line);
   lineNumber++;
   if (!toLower(line).starts_with(expectedToken)) {
     return false;
@@ -54,7 +55,7 @@ bool toCloze(std::string& input) {
   std::string result;
   result.reserve(input.size());
   for (size_t i{0}; i < input.size(); ++i) {
-    if (std::isdigit(input[i]) && i + 1 < input.size() && input[i+1] == '{') {
+    if (std::isdigit(static_cast<unsigned char>(input[i])) && i + 1 < input.size() && input[i+1] == '{') {
       int clozeNumber = input[i] - '0';
       size_t clozeStart = i + 2;
       size_t nextStart = input.find('{', clozeStart+1);
@@ -117,6 +118,7 @@ ParseResult parseFile(const Cfg &cfg)
       }
     } else if (lowerLine.starts_with("qr:")) {
       std::string front = line.substr(3);
+      front = ltrim(front);
       std::string back;
       bool paired = parsePair(ifile, back, lineNumber, "ar:");
       if (paired) res.cards.emplace_back(currentDeck, currentTags, CardType::QAR, front, back);
