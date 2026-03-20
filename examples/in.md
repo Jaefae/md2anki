@@ -2,14 +2,14 @@
 # tags: cell, intro
 
 q: What is the basic unit of life?
-a: The cell
+  a: The cell
 
-q: What organelle produces ATP?
-a: The mitochondria
+  q: What organelle produces ATP?
+    a: The mitochondria
 
-c: The powerhouse of the cell is 1{mitochondria}.
+  c: The powerhouse of the cell is 1{mitochondria}.
 
-c: DNA is stored in the 1{nucleus} of eukaryotic cells.
+  c: DNA is stored in the 1{nucleus} of eukaryotic cells.
 
 # deck: Computer Science
 # tags: algorithms, sorting
