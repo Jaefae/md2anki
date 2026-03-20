@@ -19,7 +19,7 @@ std::string_view rtrim(std::string_view input) {
   }
   return input.substr(0, end);
 }
-
+// Performs a ltrim, then rtrim on the text object
 std::string_view trim(std::string_view input) {
   return rtrim(ltrim(input));
 }

@@ -7,12 +7,14 @@
 
 size_t findNot(const std::string_view input, char token) {
   for (size_t i{0}; i < input.size(); ++i) {
-    if (input[i] != token) {return i;}
+    if (input[i] != token) {
+      return i;
+    }
   }
   return input.size();
 }
 
-std::vector<std::string> collectCSV(const std::string_view& csv) {
+std::vector<std::string> collectCSV(const std::string_view &csv) {
   std::vector<std::string> result;
   std::string_view csvStream = csv;
   size_t delimiter{0};
@@ -31,7 +33,8 @@ std::vector<std::string> collectCSV(const std::string_view& csv) {
   return result;
 }
 
-bool parsePair(std::ifstream& ifile, std::string& back, size_t& lineNumber, std::string expectedToken) {
+bool parsePair(std::ifstream &ifile, std::string &back, size_t &lineNumber,
+               std::string expectedToken) {
   std::string line;
   std::getline(ifile, line); // Next line
   line = ltrim(line);
@@ -43,20 +46,24 @@ bool parsePair(std::ifstream& ifile, std::string& back, size_t& lineNumber, std:
   return true;
 }
 
-bool toCloze(std::string& input) {
+bool toCloze(std::string &input) {
   std::string result;
   result.reserve(input.size());
   for (size_t i{0}; i < input.size(); ++i) {
-    if (std::isdigit(static_cast<unsigned char>(input[i])) && i + 1 < input.size() && input[i+1] == '{') {
+    if (std::isdigit(static_cast<unsigned char>(input[i])) &&
+        i + 1 < input.size() && input[i + 1] == '{') {
       int clozeNumber = input[i] - '0';
       size_t clozeStart = i + 2;
-      size_t nextStart = input.find('{', clozeStart+1);
+      size_t nextStart = input.find('{', clozeStart + 1);
       size_t clozeEnd = input.find('}', clozeStart);
-      if (clozeEnd == std::string::npos || ( nextStart != std::string::npos && clozeEnd > nextStart)) {
+      if (clozeEnd == std::string::npos ||
+          (nextStart != std::string::npos && clozeEnd > nextStart)) {
         return false;
       }
-      std::string clozeContent = input.substr(clozeStart, clozeEnd - clozeStart);
-      result += "{{c" + std::to_string(clozeNumber) + "::" + clozeContent + "}}";
+      std::string clozeContent =
+          input.substr(clozeStart, clozeEnd - clozeStart);
+      result +=
+          "{{c" + std::to_string(clozeNumber) + "::" + clozeContent + "}}";
       i = clozeEnd;
     } else {
       result += input[i];
@@ -66,14 +73,12 @@ bool toCloze(std::string& input) {
   return true;
 }
 
-ParseResult parseFile(const Cfg &cfg)
-{
+ParseResult parseFile(const Cfg &cfg) {
   ParseResult res;
   std::ifstream ifile(cfg.inputPath);
   std::vector<std::string> currentTags;
   std::string currentDeck;
-  if (!ifile.is_open())
-  {
+  if (!ifile.is_open()) {
     res.errors.push_back({0, "Could not open file " + cfg.inputPath.string()});
     return res;
   }
@@ -84,18 +89,20 @@ ParseResult parseFile(const Cfg &cfg)
     lineNumber++;
     std::string lowerLine = toLower(line);
 
-    if (line.size() == 0) continue; // Skip empty lines
+    if (line.size() == 0)
+      continue;                  // Skip empty lines
     if (line.starts_with('#')) { // If line is a header
       std::string header = line.substr(findNot(line, '#'));
       std::string lowerHeader = toLower(header);
 
-      if (header.empty()) continue; // Skip empty header
-
+      if (header.empty())
+        continue; // Skip empty header
 
       if (lowerHeader.find("tags:") != std::string::npos) { // Collect tags
         std::string tags = header.substr(lowerHeader.find("tags:") + 5);
         currentTags = collectCSV(ltrim(tags));
-      } else if (lowerHeader.find("deck:") != std::string::npos) { // Get deck name
+      } else if (lowerHeader.find("deck:") !=
+                 std::string::npos) { // Get deck name
         currentDeck = ltrim(header.substr(lowerHeader.find("deck:") + 5));
       }
 
@@ -104,46 +111,54 @@ ParseResult parseFile(const Cfg &cfg)
       front = ltrim(front);
       std::string back;
       bool paired = parsePair(ifile, back, lineNumber, "a:");
-      if (paired) res.cards.emplace_back(currentDeck, currentTags, CardType::QA, front, back);
+      if (paired)
+        res.cards.emplace_back(currentDeck, currentTags, CardType::QA, front,
+                               back);
       else {
-        res.errors.push_back({lineNumber, "Missing answer pair to previous question." });
+        res.errors.push_back(
+            {lineNumber, "Missing answer pair to previous question."});
       }
     } else if (lowerLine.starts_with("qr:")) {
       std::string front = line.substr(3);
       front = ltrim(front);
       std::string back;
       bool paired = parsePair(ifile, back, lineNumber, "ar:");
-      if (paired) res.cards.emplace_back(currentDeck, currentTags, CardType::QAR, front, back);
+      if (paired)
+        res.cards.emplace_back(currentDeck, currentTags, CardType::QAR, front,
+                               back);
       else {
-        res.errors.push_back({lineNumber, "Missing answer pair to previous question."});
+        res.errors.push_back(
+            {lineNumber, "Missing answer pair to previous question."});
       }
     } else if (lowerLine.starts_with("c:")) {
       std::string front = line.substr(2);
       front = ltrim(front);
       if (toCloze(front)) {
-        res.cards.emplace_back(currentDeck, currentTags, CardType::Cloze, front, "");
+        res.cards.emplace_back(currentDeck, currentTags, CardType::Cloze, front,
+                               "");
       } else {
-        res.errors.push_back({lineNumber, "Missing cloze deletion closing bracket."});
+        res.errors.push_back(
+            {lineNumber, "Missing cloze deletion closing bracket."});
       }
     }
   }
   return res;
 }
 
-bool saveFile(const Cfg& cfg, ParseResult& res) {
-  if (cfg.strictWarn && !res.errors.empty()) {return false;}
+bool saveFile(const Cfg &cfg, ParseResult &res) {
+  if (cfg.strictWarn && !res.errors.empty()) {
+    return false;
+  }
   std::ofstream ofile(cfg.outputPath);
-  if (!ofile.is_open()) return false;
+  if (!ofile.is_open())
+    return false;
   ofile << "#separator:Comma\n";
   ofile << "#html:false\n";
   ofile << "#deck column:1\n";
   ofile << "#tags column:2\n";
   ofile << "#notetype column:3\n";
-  for (auto& card: res.cards) {
+  for (auto &card : res.cards) {
     ofile << card.toCsv() << "\n";
   }
   return true;
 }
-
-
-
