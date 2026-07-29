@@ -44,8 +44,7 @@ bool parsePair(std::ifstream& ifile, std::string& back, size_t& lineNumber,
   std::string line;
   std::getline(ifile, line);  // Next line
   line = ltrim(line);
-  if (line.empty()) return false;
-  if (!toLower(line).starts_with(expectedToken)) {
+  if (line.empty() || !toLower(line).starts_with(expectedToken)) {
     ifile.clear();
     ifile.seekg(pos);  // Put the line back so the caller's loop can reprocess it.
     return false;
@@ -100,7 +99,7 @@ ParseResult parseFiles(const Cfg& cfg) {
   for (const auto& file : files) {
     std::ifstream ifile(file);
     if (!ifile.is_open()) {
-      res.errors.push_back({0, "Could not open file " + file.string()});
+      res.errors.push_back({file, 0, "Could not open file " + file.string()});
       continue;
     }
     std::vector<std::string> currentTags;
@@ -137,7 +136,8 @@ ParseResult parseFiles(const Cfg& cfg) {
                                  back);
         else {
           res.errors.push_back(
-              {lineNumber, "Missing answer pair to previous question."});
+              {file, lineNumber,
+               "Missing answer pair to question: '" + front + "'"});
         }
       } else if (lowerLine.starts_with("qr:")) {
         std::string front = line.substr(3);
@@ -149,7 +149,8 @@ ParseResult parseFiles(const Cfg& cfg) {
                                  back);
         else {
           res.errors.push_back(
-              {lineNumber, "Missing answer pair to previous question."});
+              {file, lineNumber,
+               "Missing answer pair to question: '" + front + "'"});
         }
       } else if (lowerLine.starts_with("c:")) {
         std::string front = line.substr(2);
@@ -159,7 +160,8 @@ ParseResult parseFiles(const Cfg& cfg) {
                                  front, "");
         } else {
           res.errors.push_back(
-              {lineNumber, "Missing cloze deletion closing bracket."});
+              {file, lineNumber,
+               "Missing cloze deletion closing bracket: '" + front + "'"});
         }
       }
     }

@@ -14,8 +14,8 @@ int main(int argc, char* argv[]) {
   std::cout << "[INFO] Configuration built." << std::endl;
   ParseResult res = parseFiles(cfg);
   for (auto& error : res.errors) {
-    std::cout << "[WARN] " << error.message << " (line " << error.lineNumber
-              << ")" << std::endl;
+    std::cout << "[WARN] " << error.file.string() << ":" << error.lineNumber
+              << " : " << error.message << std::endl;
   }
   if (saveFile(cfg, res)) {
     std::cout << "[INFO] Cards output to " << absolute(cfg.outputPath).string()

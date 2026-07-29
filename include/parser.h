@@ -1,6 +1,7 @@
 #pragma once
 #include "cli.h"
 #include "card.h"
+#include <filesystem>
 #include <fstream>
 #include <string>
 #include <string_view>
@@ -8,6 +9,7 @@
 
 
 struct ParseError {
+  std::filesystem::path file;
   size_t lineNumber;
   std::string message;
 };

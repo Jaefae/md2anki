@@ -94,6 +94,30 @@ TEST_CASE("parsePair fails when the expected token is missing", "[parser]") {
   CHECK(replayedLine == "not an answer");
 }
 
+TEST_CASE("parsePair rewinds on a blank next line instead of consuming it",
+          "[parser]") {
+  fs::path path = fs::temp_directory_path() / "md2anki_parsepair_blank.txt";
+  {
+    std::ofstream ofile(path);
+    ofile << "\nA: real answer\n";
+  }
+  std::string back;
+  size_t      lineNumber = 0;
+  bool        ok;
+  std::string replayedLine;
+  {
+    std::ifstream ifile(path);
+    ok = parsePair(ifile, back, lineNumber, "a:");
+    // The blank line should be put back, not silently swallowed.
+    std::getline(ifile, replayedLine);
+  }
+  fs::remove(path);
+
+  CHECK_FALSE(ok);
+  CHECK(lineNumber == 0);
+  CHECK(replayedLine.empty());
+}
+
 namespace {
 fs::path writeTempMd(const std::string& contents, const std::string& name) {
   fs::path      path = fs::temp_directory_path() / name;
@@ -186,6 +210,7 @@ TEST_CASE("parseFile reports an error when the input file cannot be opened",
   REQUIRE(res.cards.empty());
   REQUIRE(res.errors.size() == 1);
   CHECK(res.errors[0].lineNumber == 0);
+  CHECK(res.errors[0].file == cfg.inputPath);
 }
 
 TEST_CASE("parseFile parses QA, QAR, and Cloze cards with deck/tags headers",
@@ -236,6 +261,8 @@ TEST_CASE("parseFile records an error for a question missing its answer",
   REQUIRE(res.errors.size() == 1);
   // parsePair shouldn't advance lineNumber on empty read
   CHECK(res.errors[0].lineNumber == 1);
+  CHECK(res.errors[0].file == path);
+  CHECK(res.errors[0].message.find("unanswered question") != std::string::npos);
 }
 
 TEST_CASE("parseFile reprocesses a line consumed by a failed answer pairing",
@@ -253,11 +280,46 @@ TEST_CASE("parseFile reprocesses a line consumed by a failed answer pairing",
 
   REQUIRE(res.errors.size() == 1);
   CHECK(res.errors[0].lineNumber == 1);
+  CHECK(res.errors[0].file == path);
+  CHECK(res.errors[0].message.find("first question with no answer") !=
+        std::string::npos);
 
   // The second question must not be lost when the first pairing fails.
   REQUIRE(res.cards.size() == 1);
   CHECK(res.cards[0].front == "second question");
   CHECK(res.cards[0].back == "second answer");
+}
+
+TEST_CASE(
+    "parseFile reports accurate line numbers for consecutive questions "
+    "separated by blank lines",
+    "[parser]") {
+  // A blank line is not skipped when looking for an answer, so each of these
+  // questions fails to pair (a separate limitation from the bug below).
+  // What this test guards is that the blank line is rewound rather than
+  // permanently consumed, so line numbers stay accurate instead of drifting
+  // and errors aren't misattributed to the wrong question.
+  const std::string md =
+      "Q: first question with no answer\n"
+      "\n"
+      "Q: second question with no answer\n"
+      "\n"
+      "A: orphaned answer, unreachable since the blank line breaks pairing\n";
+  fs::path path = writeTempMd(md, "md2anki_parsefile_blank_reprocess.md");
+  Cfg      cfg{};
+  cfg.inputPath = path;
+
+  ParseResult res = parseFiles(cfg);
+  fs::remove(path);
+
+  CHECK(res.cards.empty());
+  REQUIRE(res.errors.size() == 2);
+  CHECK(res.errors[0].lineNumber == 1);
+  CHECK(res.errors[0].message.find("first question with no answer") !=
+        std::string::npos);
+  CHECK(res.errors[1].lineNumber == 3);
+  CHECK(res.errors[1].message.find("second question with no answer") !=
+        std::string::npos);
 }
 
 TEST_CASE("parseFile records an error for an unclosed cloze", "[parser]") {
@@ -272,6 +334,8 @@ TEST_CASE("parseFile records an error for an unclosed cloze", "[parser]") {
   CHECK(res.cards.empty());
   REQUIRE(res.errors.size() == 1);
   CHECK(res.errors[0].lineNumber == 1);
+  CHECK(res.errors[0].file == path);
+  CHECK(res.errors[0].message.find("0{unclosed") != std::string::npos);
 }
 
 TEST_CASE("saveFile writes the header and card rows", "[parser]") {
@@ -307,7 +371,7 @@ TEST_CASE("saveFile refuses to write when strictWarn is set and errors exist",
   cfg.strictWarn = true;
 
   ParseResult res;
-  res.errors.push_back({1, "some error"});
+  res.errors.push_back({"dummy.md", 1, "some error"});
 
   bool ok = saveFile(cfg, res);
   CHECK_FALSE(ok);
