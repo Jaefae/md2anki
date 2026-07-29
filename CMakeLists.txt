@@ -5,7 +5,18 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-file(GLOB SOURCES "src/*.cpp")
-add_executable(md2anki ${SOURCES})
+option(ENABLE_TESTS "Build unit tests" OFF)
 
-target_include_directories(md2anki PRIVATE include)
+file(GLOB LIB_SOURCES "src/*.cpp")
+list(REMOVE_ITEM LIB_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp")
+
+add_library(md2anki_lib STATIC ${LIB_SOURCES})
+target_include_directories(md2anki_lib PUBLIC include)
+
+add_executable(md2anki src/main.cpp)
+target_link_libraries(md2anki PRIVATE md2anki_lib)
+
+if(ENABLE_TESTS)
+  enable_testing()
+  add_subdirectory(tests)
+endif()
