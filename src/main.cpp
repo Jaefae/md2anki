@@ -1,19 +1,20 @@
+#include <iostream>
+
 #include "cli.h"
 #include "parser.h"
-#include <iostream>
 #define debug
 
-int main(int argc, char *argv[]) {
-  Cfg cfg{};
+int main(int argc, char* argv[]) {
+  Cfg  cfg{};
   bool success = cfg.fromArgs(argc, argv);
   if (!success) {
     std::cout << "[EXIT] Could not build config." << std::endl;
     return 1;
   }
   std::cout << "[INFO] Configuration built." << std::endl;
-  ParseResult res = parseFile(cfg);
-  for (auto &error : res.errors) {
-    std::cout << "[Warn] " << error.message << " (line " << error.lineNumber
+  ParseResult res = parseFiles(cfg);
+  for (auto& error : res.errors) {
+    std::cout << "[WARN] " << error.message << " (line " << error.lineNumber
               << ")" << std::endl;
   }
   if (saveFile(cfg, res)) {

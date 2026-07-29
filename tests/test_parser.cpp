@@ -1,4 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
 
@@ -102,12 +103,85 @@ fs::path writeTempMd(const std::string& contents, const std::string& name) {
 }
 }  // namespace
 
+TEST_CASE("parseFiles recursively collects .md files from a directory tree",
+          "[parser]") {
+  fs::path root = fs::temp_directory_path() / "md2anki_dirmode_root";
+  fs::remove_all(root);
+  fs::create_directories(root / "nested");
+
+  {
+    std::ofstream top(root / "top.md");
+    top << "#deck: TopDeck\n"
+        << "Q: top question\n"
+        << "A: top answer\n";
+  }
+  {
+    std::ofstream nested(root / "nested" / "nested.md");
+    nested << "#deck: NestedDeck\n"
+           << "Q: nested question\n"
+           << "A: nested answer\n";
+  }
+  {
+    // Non-.md files should be ignored.
+    std::ofstream ignored(root / "notes.txt");
+    ignored << "Q: should not be parsed\n"
+            << "A: ignored\n";
+  }
+
+  Cfg cfg{};
+  cfg.inputPath = root;
+
+  ParseResult res = parseFiles(cfg);
+  fs::remove_all(root);
+
+  REQUIRE(res.errors.empty());
+  REQUIRE(res.cards.size() == 2);
+
+  std::vector<std::string> decks{res.cards[0].deck, res.cards[1].deck};
+  CHECK(std::find(decks.begin(), decks.end(), "TopDeck") != decks.end());
+  CHECK(std::find(decks.begin(), decks.end(), "NestedDeck") != decks.end());
+}
+
+TEST_CASE("parseFiles keeps deck/tag context independent per file",
+          "[parser]") {
+  fs::path root = fs::temp_directory_path() / "md2anki_dirmode_isolated";
+  fs::remove_all(root);
+  fs::create_directories(root);
+
+  {
+    std::ofstream withDeck(root / "a.md");
+    withDeck << "#deck: DeckA\n"
+             << "Q: a question\n"
+             << "A: a answer\n";
+  }
+  {
+    // No deck header: should NOT inherit DeckA from the previous file.
+    std::ofstream noDeck(root / "b.md");
+    noDeck << "Q: b question\n"
+           << "A: b answer\n";
+  }
+
+  Cfg cfg{};
+  cfg.inputPath = root;
+
+  ParseResult res = parseFiles(cfg);
+  fs::remove_all(root);
+
+  REQUIRE(res.errors.empty());
+  REQUIRE(res.cards.size() == 2);
+
+  auto bCard = std::find_if(res.cards.begin(), res.cards.end(),
+                             [](const Card& c) { return c.front == "b question"; });
+  REQUIRE(bCard != res.cards.end());
+  CHECK(bCard->deck == "");
+}
+
 TEST_CASE("parseFile reports an error when the input file cannot be opened",
           "[parser]") {
   Cfg cfg{};
   cfg.inputPath = fs::temp_directory_path() / "md2anki_does_not_exist.md";
 
-  ParseResult res = parseFile(cfg);
+  ParseResult res = parseFiles(cfg);
 
   REQUIRE(res.cards.empty());
   REQUIRE(res.errors.size() == 1);
@@ -128,7 +202,7 @@ TEST_CASE("parseFile parses QA, QAR, and Cloze cards with deck/tags headers",
   Cfg      cfg{};
   cfg.inputPath = path;
 
-  ParseResult res = parseFile(cfg);
+  ParseResult res = parseFiles(cfg);
   fs::remove(path);
 
   REQUIRE(res.errors.empty());
@@ -155,7 +229,7 @@ TEST_CASE("parseFile records an error for a question missing its answer",
   Cfg      cfg{};
   cfg.inputPath = path;
 
-  ParseResult res = parseFile(cfg);
+  ParseResult res = parseFiles(cfg);
   fs::remove(path);
 
   CHECK(res.cards.empty());
@@ -174,7 +248,7 @@ TEST_CASE("parseFile reprocesses a line consumed by a failed answer pairing",
   Cfg      cfg{};
   cfg.inputPath = path;
 
-  ParseResult res = parseFile(cfg);
+  ParseResult res = parseFiles(cfg);
   fs::remove(path);
 
   REQUIRE(res.errors.size() == 1);
@@ -192,7 +266,7 @@ TEST_CASE("parseFile records an error for an unclosed cloze", "[parser]") {
   Cfg               cfg{};
   cfg.inputPath = path;
 
-  ParseResult res = parseFile(cfg);
+  ParseResult res = parseFiles(cfg);
   fs::remove(path);
 
   CHECK(res.cards.empty());
