@@ -1,0 +1,35 @@
+name: md2anki CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build-and-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        
+    runs-on: ${{ matrix.os }}
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Configure CMake
+      # -B creates a 'build' directory, -S specifies the source is the current directory
+      # -DCMAKE_BUILD_TYPE sets the mode for single-config generators (like Make on Linux)
+      run: cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DENABLE_TESTS=ON
+
+    - name: Build
+      # --build calls the native build tool automatically
+      # --config Release sets the mode for multi-config generators (like MSBuild on Windows)
+      run: cmake --build build --config Release
+
+    - name: Test
+      # ctest is CMake's test runner, which interfaces cleanly with Catch2
+      working-directory: ${{github.workspace}}/build
+      run: ctest -C Release --output-on-failure
