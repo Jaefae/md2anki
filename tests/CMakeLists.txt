@@ -12,8 +12,11 @@ add_executable(md2anki_tests
   test_util.cpp
   test_card.cpp
   test_parser.cpp
+  test_examples.cpp
 )
 target_link_libraries(md2anki_tests PRIVATE md2anki_lib Catch2::Catch2WithMain)
+target_compile_definitions(md2anki_tests PRIVATE
+  MD2ANKI_EXAMPLES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../examples")
 
 include(Catch)
 catch_discover_tests(md2anki_tests)
