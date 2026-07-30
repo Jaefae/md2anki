@@ -1,4 +1,5 @@
 build/
 build-tests/
+cmake-build-*/
 .cache/
 .idea/
