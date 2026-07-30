@@ -12,7 +12,8 @@ fs::path examplesDir() { return fs::path(MD2ANKI_EXAMPLES_DIR); }
 
 std::string readFile(const fs::path& path) {
   std::ifstream ifile(path);
-  return {std::istreambuf_iterator<char>(ifile), std::istreambuf_iterator<char>()};
+  return {std::istreambuf_iterator<char>(ifile),
+          std::istreambuf_iterator<char>()};
 }
 }  // namespace
 
@@ -54,10 +55,9 @@ TEST_CASE("headerexample.md parses with no errors", "[examples]") {
 
 TEST_CASE("in.MD parses every deck with no errors", "[examples]") {
   Cfg cfg{};
-  cfg.inputPath = examplesDir() / "in.MD";
+  cfg.inputPath = examplesDir() / "in.md";
 
   ParseResult res = parseFiles(cfg);
-
   CHECK(res.errors.empty());
   REQUIRE(res.cards.size() == 13);
 
@@ -68,14 +68,14 @@ TEST_CASE("in.MD parses every deck with no errors", "[examples]") {
     }
   }
   CHECK(decks == std::vector<std::string>{"Biology", "Computer Science",
-                                           "Databases", "Physics"});
+                                          "Databases", "Physics"});
 }
 
 TEST_CASE("in.MD converts to the checked-in out.csv", "[examples]") {
   Cfg cfg{};
-  cfg.inputPath  = examplesDir() / "in.MD";
+  cfg.inputPath    = examplesDir() / "in.md";
   fs::path outPath = fs::temp_directory_path() / "md2anki_examples_out.csv";
-  cfg.outputPath = outPath;
+  cfg.outputPath   = outPath;
 
   ParseResult res = parseFiles(cfg);
   REQUIRE(res.errors.empty());
