@@ -20,11 +20,12 @@ std::string Card::toCsv() {
   // Deck
   output << escapeCSV(deck) << ',';
   // Tags
+  std::string tagStr;
   for (size_t i{0}; i < tags.size(); i++) {
-    output << escapeCSV(tags[i]);
-    if (i != tags.size() - 1) output << ' ';
+    tagStr += tags[i];
+    if (i != tags.size() - 1) tagStr += ' ';
   }
-  output << ',';
+  output << escapeCSV(tagStr) << ',';
   // Type & Content
   switch (type) {
     case (CardType::Cloze):

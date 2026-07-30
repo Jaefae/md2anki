@@ -24,7 +24,7 @@ std::vector<std::string> collectCSV(const std::string_view& csv) {
   std::string_view         csvStream = csv;
   size_t                   delimiter{0};
   while (delimiter != std::string_view::npos) {
-    delimiter              = csvStream.find(',');
+    delimiter = csvStream.find_first_of(", \t\r\n");
     std::string_view token = csvStream.substr(0, delimiter);
     token                  = trim(token);
     if (!token.empty()) {

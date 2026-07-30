@@ -22,6 +22,14 @@ TEST_CASE("collectCSV splits, trims, and drops empty fields", "[parser]") {
   CHECK(collectCSV("single") == std::vector<std::string>{"single"});
 }
 
+TEST_CASE("collectCSV also splits on whitespace, with or without commas",
+          "[parser]") {
+  CHECK(collectCSV("a b c") == std::vector<std::string>{"a", "b", "c"});
+  CHECK(collectCSV("a,b c") == std::vector<std::string>{"a", "b", "c"});
+  CHECK(collectCSV("a\tb\nc") == std::vector<std::string>{"a", "b", "c"});
+  CHECK(collectCSV("  a   b  ") == std::vector<std::string>{"a", "b"});
+}
+
 TEST_CASE("toCloze converts a numbered cloze marker", "[parser]") {
   std::string input = "The 0{answer} is here";
   REQUIRE(toCloze(input));
