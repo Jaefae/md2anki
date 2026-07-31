@@ -27,32 +27,79 @@ TEST_CASE("collectCSV also splits on whitespace, with or without commas",
 }
 
 TEST_CASE("toCloze converts a numbered cloze marker", "[parser]") {
-  std::string input = "The 0{answer} is here";
-  REQUIRE(toCloze(input));
-  CHECK(input == "The {{c0::answer}} is here");
+  std::string input = "The 1{answer} is here";
+  REQUIRE(toCloze(input) == ClozeStatus::Ok);
+  CHECK(input == "The {{c1::answer}} is here");
 }
 
 TEST_CASE("toCloze handles multiple cloze markers", "[parser]") {
-  std::string input = "0{first} and 1{second}";
-  REQUIRE(toCloze(input));
-  CHECK(input == "{{c0::first}} and {{c1::second}}");
+  std::string input = "1{first} and 2{second}";
+  REQUIRE(toCloze(input) == ClozeStatus::Ok);
+  CHECK(input == "{{c1::first}} and {{c2::second}}");
+}
+
+TEST_CASE("toCloze converts two-digit cloze numbers", "[parser]") {
+  std::string input = "10{ten} and 42{forty two}";
+  REQUIRE(toCloze(input) == ClozeStatus::Ok);
+  CHECK(input == "{{c10::ten}} and {{c42::forty two}}");
+}
+
+TEST_CASE("toCloze accepts the whole c1-c99 range", "[parser]") {
+  std::string lowest = "1{x}";
+  REQUIRE(toCloze(lowest) == ClozeStatus::Ok);
+  CHECK(lowest == "{{c1::x}}");
+
+  std::string highest = "99{x}";
+  REQUIRE(toCloze(highest) == ClozeStatus::Ok);
+  CHECK(highest == "{{c99::x}}");
+}
+
+TEST_CASE("toCloze normalizes leading zeros in the cloze number", "[parser]") {
+  std::string input = "007{x}";
+  REQUIRE(toCloze(input) == ClozeStatus::Ok);
+  CHECK(input == "{{c7::x}}");
+}
+
+TEST_CASE("toCloze rejects cloze numbers outside c1-c99", "[parser]") {
+  std::string zero = "0{x}";
+  CHECK(toCloze(zero) == ClozeStatus::NumberOutOfRange);
+  CHECK(zero == "0{x}");  // Left unchanged so the caller can report it.
+
+  std::string hundred = "100{x}";
+  CHECK(toCloze(hundred) == ClozeStatus::NumberOutOfRange);
+
+  std::string huge = "999999999999999999999{x}";
+  CHECK(toCloze(huge) == ClozeStatus::NumberOutOfRange);
+}
+
+TEST_CASE("toCloze leaves digits that don't open a marker alone", "[parser]") {
+  std::string input = "Apollo 11 landed in 1969, 1{Neil Armstrong} first";
+  REQUIRE(toCloze(input) == ClozeStatus::Ok);
+  CHECK(input == "Apollo 11 landed in 1969, {{c1::Neil Armstrong}} first");
 }
 
 TEST_CASE("toCloze leaves text without markers unchanged", "[parser]") {
   std::string input = "no clozes here";
-  REQUIRE(toCloze(input));
+  REQUIRE(toCloze(input) == ClozeStatus::Ok);
   CHECK(input == "no clozes here");
 }
 
+TEST_CASE("toCloze leaves a brace not preceded by digits alone", "[parser]") {
+  std::string input = "a literal {brace} and 1{a cloze}";
+  REQUIRE(toCloze(input) == ClozeStatus::Ok);
+  CHECK(input == "a literal {brace} and {{c1::a cloze}}");
+}
+
 TEST_CASE("toCloze fails on unclosed cloze", "[parser]") {
-  std::string input = "The 0{answer is here";
-  CHECK_FALSE(toCloze(input));
+  std::string input = "The 1{answer is here";
+  CHECK(toCloze(input) == ClozeStatus::UnclosedBracket);
+  CHECK(input == "The 1{answer is here");  // Left unchanged.
 }
 
 TEST_CASE("toCloze fails when a new cloze opens before the previous closes",
           "[parser]") {
-  std::string input = "0{first 1{second}";
-  CHECK_FALSE(toCloze(input));
+  std::string input = "1{first 2{second}";
+  CHECK(toCloze(input) == ClozeStatus::UnclosedBracket);
 }
 
 TEST_CASE("LineCursor walks lines and numbers them from one", "[parser]") {
@@ -141,7 +188,7 @@ TEST_CASE("parseMarkdown parses QA, QAR, and Cloze cards with deck/tags "
       "A: 4\n"
       "QR: capital of France\n"
       "AR: Paris\n"
-      "C: 0{Anki} is spaced repetition software\n");
+      "C: 1{Anki} is spaced repetition software\n");
 
   REQUIRE(res.errors.empty());
   REQUIRE(res.cards.size() == 3);
@@ -157,7 +204,7 @@ TEST_CASE("parseMarkdown parses QA, QAR, and Cloze cards with deck/tags "
   CHECK(res.cards[1].back == "Paris");
 
   CHECK(res.cards[2].type == CardType::Cloze);
-  CHECK(res.cards[2].front == "{{c0::Anki}} is spaced repetition software");
+  CHECK(res.cards[2].front == "{{c1::Anki}} is spaced repetition software");
 }
 
 TEST_CASE("parseMarkdown accepts markers in any case", "[parser]") {
@@ -281,12 +328,37 @@ TEST_CASE(
 }
 
 TEST_CASE("parseMarkdown records an error for an unclosed cloze", "[parser]") {
-  ParseResult res = parseMarkdown("C: 0{unclosed\n");
+  ParseResult res = parseMarkdown("C: 1{unclosed\n");
 
   CHECK(res.cards.empty());
   REQUIRE(res.errors.size() == 1);
   CHECK(res.errors[0].lineNumber == 1);
-  CHECK(res.errors[0].message.find("0{unclosed") != std::string::npos);
+  CHECK(res.errors[0].message.find("closing bracket") != std::string::npos);
+  CHECK(res.errors[0].message.find("1{unclosed") != std::string::npos);
+}
+
+TEST_CASE("parseMarkdown records an error for an out-of-range cloze number",
+          "[parser]") {
+  ParseResult res = parseMarkdown(
+      "C: 0{too low}\n"
+      "C: 100{too high}\n");
+
+  CHECK(res.cards.empty());
+  REQUIRE(res.errors.size() == 2);
+  CHECK(res.errors[0].lineNumber == 1);
+  CHECK(res.errors[0].message.find("between 1 and 99") != std::string::npos);
+  CHECK(res.errors[0].message.find("0{too low}") != std::string::npos);
+  CHECK(res.errors[1].lineNumber == 2);
+  CHECK(res.errors[1].message.find("100{too high}") != std::string::npos);
+}
+
+TEST_CASE("parseMarkdown converts multi-digit cloze cards", "[parser]") {
+  ParseResult res = parseMarkdown("C: 9{nine} then 10{ten} then 99{ninety}\n");
+
+  REQUIRE(res.errors.empty());
+  REQUIRE(res.cards.size() == 1);
+  CHECK(res.cards[0].front ==
+        "{{c9::nine}} then {{c10::ten}} then {{c99::ninety}}");
 }
 
 TEST_CASE("parseMarkdown handles CRLF input identically to LF", "[parser]") {

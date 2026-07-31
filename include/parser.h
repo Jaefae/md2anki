@@ -41,7 +41,21 @@ class LineCursor {
 
 std::vector<std::string> collectCSV(std::string_view csv);
 size_t                   findNot(std::string_view input, char token);
-bool                     toCloze(std::string& input);
+
+/// Anki numbers cloze deletions c1 through c99.
+inline constexpr int kMinClozeNumber = 1;
+inline constexpr int kMaxClozeNumber = 99;
+
+enum class ClozeStatus {
+  Ok,
+  UnclosedBracket,   ///< A marker was never closed, or another opened first.
+  NumberOutOfRange,  ///< A marker's number falls outside c1-c99.
+};
+
+/// Rewrites every `N{text}` marker into Anki's `{{cN::text}}` form, in place.
+/// `N` is a run of digits directly followed by '{'. On failure `input` is left
+/// unchanged so the caller can report the original text.
+ClozeStatus toCloze(std::string& input);
 
 /// Consumes the next line when it starts with `expectedToken`, writing the
 /// remainder into `back`. Leaves the cursor and `back` untouched otherwise, so

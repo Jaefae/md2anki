@@ -80,7 +80,7 @@ produces `out.csv`, ready to import into Anki via **File > Import**:
 | `#tags: a, b`      | Set tags (comma or whitespace separated) for all following cards |
 | `Q: ... / A: ...`  | Basic question/answer card                      |
 | `Qr: ... / Ar: ...`| Reversible question/answer card                 |
-| `C: ...`           | Cloze card; use `N{text}` for cloze deletion `N` |
+| `C: ...`           | Cloze card; use `N{text}` for cloze deletion `N` (`1`-`99`) |
 
 ## FAQ
 
@@ -106,7 +106,10 @@ Q: How are tags separated, comma or whitespace?
 A: Either. #tags: a, b and #tags: a b are equivalent.
 
 Q: Can I write a literal { in cloze card text?
-A: Yes, as long as it's not immediately preceded by a digit — only N{ (a digit followed directly by {) starts a cloze deletion.
+A: Yes, as long as it's not immediately preceded by a digit — only N{ (digits followed directly by {) starts a cloze deletion.
+
+Q: Which cloze numbers are valid?
+A: 1 through 99, matching Anki. 0{...} or 100{...} is reported as an error instead of being converted.
 
 Q: My card imported with no notetype or is missing fields in Anki. What's wrong?
 A: Anki must have Basic, Basic (and reversed card), and Cloze note types available, and the CSV import should map the header columns already present in the output file.
