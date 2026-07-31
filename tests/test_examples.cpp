@@ -3,7 +3,7 @@
 #include <fstream>
 
 #include "cli.h"
-#include "parser.h"
+#include "io.h"
 
 namespace fs = std::filesystem;
 
@@ -73,17 +73,10 @@ TEST_CASE("in.MD parses every deck with no errors", "[examples]") {
 
 TEST_CASE("in.MD converts to the checked-in out.csv", "[examples]") {
   Cfg cfg{};
-  cfg.inputPath    = examplesDir() / "in.md";
-  fs::path outPath = fs::temp_directory_path() / "md2anki_examples_out.csv";
-  cfg.outputPath   = outPath;
+  cfg.inputPath = examplesDir() / "in.md";
 
   ParseResult res = parseFiles(cfg);
   REQUIRE(res.errors.empty());
-  REQUIRE(saveFile(cfg, res));
 
-  std::string actual   = readFile(outPath);
-  std::string expected = readFile(examplesDir() / "out.csv");
-  fs::remove(outPath);
-
-  CHECK(actual == expected);
+  CHECK(toCsvDocument(res.cards) == readFile(examplesDir() / "out.csv"));
 }

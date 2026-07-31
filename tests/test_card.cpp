@@ -57,3 +57,30 @@ TEST_CASE("Card::toCsv escapes embedded quotes in the deck name", "[card]") {
   Card card("Deck \"Nickname\"", tags, CardType::QA, "q", "a");
   CHECK(card.toCsv() == "\"Deck \"\"Nickname\"\"\",\"\",Basic,\"q\",\"a\"");
 }
+
+TEST_CASE("toCsvDocument writes the Anki import headers", "[card]") {
+  CHECK(toCsvDocument({}) ==
+        "#separator:Comma\n"
+        "#html:false\n"
+        "#deck column:1\n"
+        "#tags column:2\n"
+        "#notetype column:3\n");
+}
+
+TEST_CASE("toCsvDocument appends one newline-terminated row per card",
+          "[card]") {
+  std::vector<std::string> tags{"tag"};
+  std::vector<Card>        cards{
+      Card("Deck", tags, CardType::QA, "q", "a"),
+      Card("Deck", tags, CardType::Cloze, "{{c1::x}}", ""),
+  };
+
+  CHECK(toCsvDocument(cards) ==
+        "#separator:Comma\n"
+        "#html:false\n"
+        "#deck column:1\n"
+        "#tags column:2\n"
+        "#notetype column:3\n"
+        "\"Deck\",\"tag\",Basic,\"q\",\"a\"\n"
+        "\"Deck\",\"tag\",Cloze,\"{{c1::x}}\"\n");
+}

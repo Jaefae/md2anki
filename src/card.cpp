@@ -2,6 +2,7 @@
 
 #include <sstream>
 #include <string>
+#include <vector>
 
 std::string escapeCSV(const std::string& text) {
   std::ostringstream escaped{};
@@ -15,7 +16,7 @@ std::string escapeCSV(const std::string& text) {
   escaped << '\"';
   return escaped.str();
 }
-std::string Card::toCsv() {
+std::string Card::toCsv() const {
   std::ostringstream output;
   // Deck
   output << escapeCSV(deck) << ',';
@@ -45,3 +46,16 @@ std::string Card::toCsv() {
   }
   return output.str();
 };
+
+std::string toCsvDocument(const std::vector<Card>& cards) {
+  std::ostringstream output;
+  output << "#separator:Comma\n";
+  output << "#html:false\n";
+  output << "#deck column:1\n";
+  output << "#tags column:2\n";
+  output << "#notetype column:3\n";
+  for (const auto& card : cards) {
+    output << card.toCsv() << "\n";
+  }
+  return output.str();
+}

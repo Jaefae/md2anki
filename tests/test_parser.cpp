@@ -1,12 +1,8 @@
 #include <catch2/catch_test_macros.hpp>
-#include <algorithm>
-#include <filesystem>
-#include <fstream>
+#include <string>
+#include <vector>
 
-#include "cli.h"
 #include "parser.h"
-
-namespace fs = std::filesystem;
 
 TEST_CASE("findNot returns index of first differing char", "[parser]") {
   CHECK(findNot("###abc", '#') == 3);
@@ -59,184 +55,93 @@ TEST_CASE("toCloze fails when a new cloze opens before the previous closes",
   CHECK_FALSE(toCloze(input));
 }
 
-TEST_CASE("parsePair reads a matching answer line", "[parser]") {
-  fs::path path = fs::temp_directory_path() / "md2anki_parsepair_ok.txt";
-  {
-    std::ofstream ofile(path);
-    ofile << "A: the answer\n";
-  }
-  std::string back;
-  size_t      lineNumber = 0;
-  bool        ok;
-  {
-    std::ifstream ifile(path);
-    ok = parsePair(ifile, back, lineNumber, "a:");
-  }
-  fs::remove(path);
+TEST_CASE("LineCursor walks lines and numbers them from one", "[parser]") {
+  LineCursor lines{"first\nsecond\nthird"};
 
-  REQUIRE(ok);
+  CHECK(lines.lineNumber() == 0);
+  CHECK(lines.peek() == "first");
+  CHECK(lines.next() == "first");
+  CHECK(lines.lineNumber() == 1);
+  CHECK(lines.next() == "second");
+  CHECK(lines.next() == "third");
+  CHECK(lines.lineNumber() == 3);
+  CHECK(lines.atEnd());
+}
+
+TEST_CASE("LineCursor keeps interior blank lines but stops after a trailing "
+          "newline",
+          "[parser]") {
+  LineCursor lines{"a\n\nb\n"};
+
+  CHECK(lines.next() == "a");
+  CHECK(lines.next() == "");
+  CHECK(lines.next() == "b");
+  CHECK(lines.atEnd());
+}
+
+TEST_CASE("LineCursor is empty for empty text", "[parser]") {
+  LineCursor lines{""};
+  CHECK(lines.atEnd());
+  CHECK(lines.peek() == "");
+}
+
+TEST_CASE("LineCursor strips carriage returns from CRLF text", "[parser]") {
+  LineCursor lines{"a\r\nb\r\n"};
+  CHECK(lines.next() == "a");
+  CHECK(lines.next() == "b");
+  CHECK(lines.atEnd());
+}
+
+TEST_CASE("parsePair reads a matching answer line", "[parser]") {
+  LineCursor  lines{"A: the answer\n"};
+  std::string back;
+
+  REQUIRE(parsePair(lines, back, "a:"));
   CHECK(back == "the answer");
-  CHECK(lineNumber == 1);
+  CHECK(lines.lineNumber() == 1);
+  CHECK(lines.atEnd());
 }
 
 TEST_CASE("parsePair fails when the expected token is missing", "[parser]") {
-  fs::path path = fs::temp_directory_path() / "md2anki_parsepair_bad.txt";
-  {
-    std::ofstream ofile(path);
-    ofile << "not an answer\n";
-  }
+  LineCursor  lines{"not an answer\n"};
   std::string back;
-  size_t      lineNumber = 0;
-  bool        ok;
-  std::string replayedLine;
-  {
-    std::ifstream ifile(path);
-    ok = parsePair(ifile, back, lineNumber, "a:");
-    // The unmatched line should be put back for the caller to reprocess.
-    std::getline(ifile, replayedLine);
-  }
-  fs::remove(path);
 
-  CHECK_FALSE(ok);
-  CHECK(lineNumber == 0);
-  CHECK(replayedLine == "not an answer");
+  CHECK_FALSE(parsePair(lines, back, "a:"));
+  CHECK(lines.lineNumber() == 0);
+  // The unmatched line should be left for the caller to reprocess.
+  CHECK(lines.next() == "not an answer");
 }
 
 TEST_CASE("parsePair rewinds on a blank next line instead of consuming it",
           "[parser]") {
-  fs::path path = fs::temp_directory_path() / "md2anki_parsepair_blank.txt";
-  {
-    std::ofstream ofile(path);
-    ofile << "\nA: real answer\n";
-  }
+  LineCursor  lines{"\nA: real answer\n"};
   std::string back;
-  size_t      lineNumber = 0;
-  bool        ok;
-  std::string replayedLine;
-  {
-    std::ifstream ifile(path);
-    ok = parsePair(ifile, back, lineNumber, "a:");
-    // The blank line should be put back, not silently swallowed.
-    std::getline(ifile, replayedLine);
-  }
-  fs::remove(path);
 
-  CHECK_FALSE(ok);
-  CHECK(lineNumber == 0);
-  CHECK(replayedLine.empty());
+  CHECK_FALSE(parsePair(lines, back, "a:"));
+  CHECK(lines.lineNumber() == 0);
+  // The blank line should be left in place, not silently swallowed.
+  CHECK(lines.next() == "");
 }
 
-namespace {
-fs::path writeTempMd(const std::string& contents, const std::string& name) {
-  fs::path      path = fs::temp_directory_path() / name;
-  std::ofstream ofile(path);
-  ofile << contents;
-  return path;
-}
-}  // namespace
+TEST_CASE("parsePair fails at end of input", "[parser]") {
+  LineCursor  lines{""};
+  std::string back = "untouched";
 
-TEST_CASE("parseFiles recursively collects .md files from a directory tree",
+  CHECK_FALSE(parsePair(lines, back, "a:"));
+  CHECK(back == "untouched");
+}
+
+TEST_CASE("parseMarkdown parses QA, QAR, and Cloze cards with deck/tags "
+          "headers",
           "[parser]") {
-  fs::path root = fs::temp_directory_path() / "md2anki_dirmode_root";
-  fs::remove_all(root);
-  fs::create_directories(root / "nested");
-
-  {
-    std::ofstream top(root / "top.md");
-    top << "#deck: TopDeck\n"
-        << "Q: top question\n"
-        << "A: top answer\n";
-  }
-  {
-    std::ofstream nested(root / "nested" / "nested.md");
-    nested << "#deck: NestedDeck\n"
-           << "Q: nested question\n"
-           << "A: nested answer\n";
-  }
-  {
-    // Non-.md files should be ignored.
-    std::ofstream ignored(root / "notes.txt");
-    ignored << "Q: should not be parsed\n"
-            << "A: ignored\n";
-  }
-
-  Cfg cfg{};
-  cfg.inputPath = root;
-
-  ParseResult res = parseFiles(cfg);
-  fs::remove_all(root);
-
-  REQUIRE(res.errors.empty());
-  REQUIRE(res.cards.size() == 2);
-
-  std::vector<std::string> decks{res.cards[0].deck, res.cards[1].deck};
-  CHECK(std::find(decks.begin(), decks.end(), "TopDeck") != decks.end());
-  CHECK(std::find(decks.begin(), decks.end(), "NestedDeck") != decks.end());
-}
-
-TEST_CASE("parseFiles keeps deck/tag context independent per file",
-          "[parser]") {
-  fs::path root = fs::temp_directory_path() / "md2anki_dirmode_isolated";
-  fs::remove_all(root);
-  fs::create_directories(root);
-
-  {
-    std::ofstream withDeck(root / "a.md");
-    withDeck << "#deck: DeckA\n"
-             << "Q: a question\n"
-             << "A: a answer\n";
-  }
-  {
-    // No deck header: should NOT inherit DeckA from the previous file.
-    std::ofstream noDeck(root / "b.md");
-    noDeck << "Q: b question\n"
-           << "A: b answer\n";
-  }
-
-  Cfg cfg{};
-  cfg.inputPath = root;
-
-  ParseResult res = parseFiles(cfg);
-  fs::remove_all(root);
-
-  REQUIRE(res.errors.empty());
-  REQUIRE(res.cards.size() == 2);
-
-  auto bCard = std::find_if(res.cards.begin(), res.cards.end(),
-                             [](const Card& c) { return c.front == "b question"; });
-  REQUIRE(bCard != res.cards.end());
-  CHECK(bCard->deck == "");
-}
-
-TEST_CASE("parseFile reports an error when the input file cannot be opened",
-          "[parser]") {
-  Cfg cfg{};
-  cfg.inputPath = fs::temp_directory_path() / "md2anki_does_not_exist.md";
-
-  ParseResult res = parseFiles(cfg);
-
-  REQUIRE(res.cards.empty());
-  REQUIRE(res.errors.size() == 1);
-  CHECK(res.errors[0].lineNumber == 0);
-  CHECK(res.errors[0].file == cfg.inputPath);
-}
-
-TEST_CASE("parseFile parses QA, QAR, and Cloze cards with deck/tags headers",
-          "[parser]") {
-  const std::string md =
+  ParseResult res = parseMarkdown(
       "#deck: MyDeck\n"
       "#tags: t1, t2\n"
       "Q: What is 2+2?\n"
       "A: 4\n"
       "QR: capital of France\n"
       "AR: Paris\n"
-      "C: 0{Anki} is spaced repetition software\n";
-  fs::path path = writeTempMd(md, "md2anki_parsefile_ok.md");
-  Cfg      cfg{};
-  cfg.inputPath = path;
-
-  ParseResult res = parseFiles(cfg);
-  fs::remove(path);
+      "C: 0{Anki} is spaced repetition software\n");
 
   REQUIRE(res.errors.empty());
   REQUIRE(res.cards.size() == 3);
@@ -255,40 +160,91 @@ TEST_CASE("parseFile parses QA, QAR, and Cloze cards with deck/tags headers",
   CHECK(res.cards[2].front == "{{c0::Anki}} is spaced repetition software");
 }
 
-TEST_CASE("parseFile records an error for a question missing its answer",
-          "[parser]") {
-  const std::string md = "Q: unanswered question\n";
-  fs::path path        = writeTempMd(md, "md2anki_parsefile_missing_answer.md");
-  Cfg      cfg{};
-  cfg.inputPath = path;
+TEST_CASE("parseMarkdown accepts markers in any case", "[parser]") {
+  ParseResult res = parseMarkdown(
+      "#DECK: MyDeck\n"
+      "#Tags: t1\n"
+      "q: lower question\n"
+      "a: lower answer\n");
 
-  ParseResult res = parseFiles(cfg);
-  fs::remove(path);
+  REQUIRE(res.errors.empty());
+  REQUIRE(res.cards.size() == 1);
+  CHECK(res.cards[0].deck == "MyDeck");
+  CHECK(res.cards[0].tags == std::vector<std::string>{"t1"});
+  CHECK(res.cards[0].front == "lower question");
+  CHECK(res.cards[0].back == "lower answer");
+}
+
+TEST_CASE("parseMarkdown applies headers to the cards that follow them",
+          "[parser]") {
+  ParseResult res = parseMarkdown(
+      "#deck: First\n"
+      "Q: one\n"
+      "A: 1\n"
+      "#deck: Second\n"
+      "#tags: later\n"
+      "Q: two\n"
+      "A: 2\n");
+
+  REQUIRE(res.errors.empty());
+  REQUIRE(res.cards.size() == 2);
+  CHECK(res.cards[0].deck == "First");
+  CHECK(res.cards[0].tags.empty());
+  CHECK(res.cards[1].deck == "Second");
+  CHECK(res.cards[1].tags == std::vector<std::string>{"later"});
+}
+
+TEST_CASE("parseMarkdown ignores prose and empty headers", "[parser]") {
+  ParseResult res = parseMarkdown(
+      "# Just a title\n"
+      "###\n"
+      "Some ordinary paragraph text.\n"
+      "\n"
+      "Q: still parsed\n"
+      "A: yes\n");
+
+  REQUIRE(res.errors.empty());
+  REQUIRE(res.cards.size() == 1);
+  CHECK(res.cards[0].front == "still parsed");
+  CHECK(res.cards[0].deck.empty());
+}
+
+TEST_CASE("parseMarkdown records an error for a question missing its answer",
+          "[parser]") {
+  ParseResult res = parseMarkdown("Q: unanswered question\n");
 
   CHECK(res.cards.empty());
   REQUIRE(res.errors.size() == 1);
-  // parsePair shouldn't advance lineNumber on empty read
   CHECK(res.errors[0].lineNumber == 1);
-  CHECK(res.errors[0].file == path);
-  CHECK(res.errors[0].message.find("unanswered question") != std::string::npos);
+  CHECK(res.errors[0].message.find("unanswered question") !=
+        std::string::npos);
 }
 
-TEST_CASE("parseFile reprocesses a line consumed by a failed answer pairing",
+TEST_CASE("parseMarkdown labels errors with the origin it was given",
           "[parser]") {
-  const std::string md =
+  ParseResult res = parseMarkdown("Q: unanswered question\n", "notes/deck.md");
+
+  REQUIRE(res.errors.size() == 1);
+  CHECK(res.errors[0].file == std::filesystem::path("notes/deck.md"));
+}
+
+TEST_CASE("parseMarkdown leaves the origin empty by default", "[parser]") {
+  ParseResult res = parseMarkdown("Q: unanswered question\n");
+
+  REQUIRE(res.errors.size() == 1);
+  CHECK(res.errors[0].file.empty());
+}
+
+TEST_CASE("parseMarkdown reprocesses a line consumed by a failed answer "
+          "pairing",
+          "[parser]") {
+  ParseResult res = parseMarkdown(
       "Q: first question with no answer\n"
       "Q: second question\n"
-      "A: second answer\n";
-  fs::path path = writeTempMd(md, "md2anki_parsefile_reprocess.md");
-  Cfg      cfg{};
-  cfg.inputPath = path;
-
-  ParseResult res = parseFiles(cfg);
-  fs::remove(path);
+      "A: second answer\n");
 
   REQUIRE(res.errors.size() == 1);
   CHECK(res.errors[0].lineNumber == 1);
-  CHECK(res.errors[0].file == path);
   CHECK(res.errors[0].message.find("first question with no answer") !=
         std::string::npos);
 
@@ -299,7 +255,7 @@ TEST_CASE("parseFile reprocesses a line consumed by a failed answer pairing",
 }
 
 TEST_CASE(
-    "parseFile reports accurate line numbers for consecutive questions "
+    "parseMarkdown reports accurate line numbers for consecutive questions "
     "separated by blank lines",
     "[parser]") {
   // A blank line is not skipped when looking for an answer, so each of these
@@ -307,18 +263,12 @@ TEST_CASE(
   // What this test guards is that the blank line is rewound rather than
   // permanently consumed, so line numbers stay accurate instead of drifting
   // and errors aren't misattributed to the wrong question.
-  const std::string md =
+  ParseResult res = parseMarkdown(
       "Q: first question with no answer\n"
       "\n"
       "Q: second question with no answer\n"
       "\n"
-      "A: orphaned answer, unreachable since the blank line breaks pairing\n";
-  fs::path path = writeTempMd(md, "md2anki_parsefile_blank_reprocess.md");
-  Cfg      cfg{};
-  cfg.inputPath = path;
-
-  ParseResult res = parseFiles(cfg);
-  fs::remove(path);
+      "A: orphaned answer, unreachable since the blank line breaks pairing\n");
 
   CHECK(res.cards.empty());
   REQUIRE(res.errors.size() == 2);
@@ -330,58 +280,41 @@ TEST_CASE(
         std::string::npos);
 }
 
-TEST_CASE("parseFile records an error for an unclosed cloze", "[parser]") {
-  const std::string md   = "C: 0{unclosed\n";
-  fs::path          path = writeTempMd(md, "md2anki_parsefile_bad_cloze.md");
-  Cfg               cfg{};
-  cfg.inputPath = path;
-
-  ParseResult res = parseFiles(cfg);
-  fs::remove(path);
+TEST_CASE("parseMarkdown records an error for an unclosed cloze", "[parser]") {
+  ParseResult res = parseMarkdown("C: 0{unclosed\n");
 
   CHECK(res.cards.empty());
   REQUIRE(res.errors.size() == 1);
   CHECK(res.errors[0].lineNumber == 1);
-  CHECK(res.errors[0].file == path);
   CHECK(res.errors[0].message.find("0{unclosed") != std::string::npos);
 }
 
-TEST_CASE("saveFile writes the header and card rows", "[parser]") {
-  fs::path outPath = fs::temp_directory_path() / "md2anki_savefile_out.csv";
-  Cfg      cfg{};
-  cfg.outputPath = outPath;
+TEST_CASE("parseMarkdown handles CRLF input identically to LF", "[parser]") {
+  ParseResult res = parseMarkdown(
+      "#deck: MyDeck\r\n"
+      "Q: question\r\n"
+      "A: answer\r\n");
 
-  ParseResult              res;
-  std::vector<std::string> tags{"tag"};
-  res.cards.emplace_back("Deck", tags, CardType::QA, "front", "back");
-
-  bool ok = saveFile(cfg, res);
-  REQUIRE(ok);
-
-  std::string contents;
-  {
-    std::ifstream ifile(outPath);
-    contents.assign(std::istreambuf_iterator<char>(ifile),
-                    std::istreambuf_iterator<char>());
-  }
-  fs::remove(outPath);
-
-  CHECK(contents.find("#separator:Comma") != std::string::npos);
-  CHECK(contents.find("\"Deck\",\"tag\",Basic,\"front\",\"back\"") !=
-        std::string::npos);
+  REQUIRE(res.errors.empty());
+  REQUIRE(res.cards.size() == 1);
+  CHECK(res.cards[0].deck == "MyDeck");
+  CHECK(res.cards[0].front == "question");
+  CHECK(res.cards[0].back == "answer");
 }
 
-TEST_CASE("saveFile refuses to write when strictWarn is set and errors exist",
+TEST_CASE("parseMarkdown accepts a final line without a trailing newline",
           "[parser]") {
-  fs::path outPath = fs::temp_directory_path() / "md2anki_savefile_strict.csv";
-  Cfg      cfg{};
-  cfg.outputPath = outPath;
-  cfg.strictWarn = true;
+  ParseResult res = parseMarkdown(
+      "Q: question\n"
+      "A: answer");
 
-  ParseResult res;
-  res.errors.push_back({"dummy.md", 1, "some error"});
+  REQUIRE(res.errors.empty());
+  REQUIRE(res.cards.size() == 1);
+  CHECK(res.cards[0].back == "answer");
+}
 
-  bool ok = saveFile(cfg, res);
-  CHECK_FALSE(ok);
-  CHECK_FALSE(fs::exists(outPath));
+TEST_CASE("parseMarkdown returns nothing for empty input", "[parser]") {
+  ParseResult res = parseMarkdown("");
+  CHECK(res.cards.empty());
+  CHECK(res.errors.empty());
 }

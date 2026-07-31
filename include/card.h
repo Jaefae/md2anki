@@ -26,5 +26,8 @@ struct Card{
     this->front = front;
     this->back = back;
   }
-  std::string toCsv();
+  std::string toCsv() const;
 };
+
+/// Renders a full Anki CSV document (import headers + one row per card).
+std::string toCsvDocument(const std::vector<Card>& cards);

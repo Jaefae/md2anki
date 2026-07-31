@@ -12,6 +12,7 @@ add_executable(md2anki_tests
   test_util.cpp
   test_card.cpp
   test_parser.cpp
+  test_io.cpp
   test_examples.cpp
 )
 target_link_libraries(md2anki_tests PRIVATE md2anki_lib Catch2::Catch2WithMain)
