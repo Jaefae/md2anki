@@ -33,6 +33,17 @@ class LineCursor {
   /// Line number of the most recently consumed line (0 before the first).
   size_t lineNumber() const { return lineNumber_; }
 
+  /// Opaque cursor position, for speculative lookahead that may be undone.
+  struct State {
+    size_t pos;
+    size_t lineNumber;
+  };
+  State checkpoint() const { return {pos_, lineNumber_}; }
+  void  restore(State state) {
+    pos_        = state.pos;
+    lineNumber_ = state.lineNumber;
+  }
+
  private:
   std::string_view text_;
   size_t           pos_{0};
@@ -62,6 +73,20 @@ ClozeStatus toCloze(std::string& input);
 /// the caller can reprocess the line.
 bool parsePair(LineCursor& lines, std::string& back,
                std::string_view expectedToken);
+
+/// True for a line that starts a new header or card (`#`, `Q:`, `Qr:`, `C:`,
+/// `A:`, `Ar:`), checked case-insensitively. `line` should already be
+/// left-trimmed.
+bool isDirectiveLine(std::string_view line);
+
+/// Appends indented lines following the current position onto `field`,
+/// letting a `Q:`/`A:`/`C:` field span multiple lines. A line only continues
+/// the field if it's indented (leading space or tab) in the source; a
+/// directive line or a dedented line always stops it. A run of blank lines is
+/// tolerated (kept as blank lines in `field`) as long as the next non-blank
+/// line is still indented and not a directive — otherwise the blank lines are
+/// left unconsumed and continuation stops.
+void appendContinuation(LineCursor& lines, std::string& field);
 
 /// Parses markdown source held in memory. `origin` only labels the errors it
 /// produces; nothing is read from disk.

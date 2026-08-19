@@ -390,3 +390,183 @@ TEST_CASE("parseMarkdown returns nothing for empty input", "[parser]") {
   CHECK(res.cards.empty());
   CHECK(res.errors.empty());
 }
+
+TEST_CASE("isDirectiveLine recognizes headers and card markers", "[parser]") {
+  CHECK(isDirectiveLine("#deck: X"));
+  CHECK(isDirectiveLine("Q: x"));
+  CHECK(isDirectiveLine("qr: x"));
+  CHECK(isDirectiveLine("A: x"));
+  CHECK(isDirectiveLine("ar: x"));
+  CHECK(isDirectiveLine("C: x"));
+  CHECK_FALSE(isDirectiveLine("just prose"));
+  CHECK_FALSE(isDirectiveLine(""));
+}
+
+TEST_CASE("appendContinuation is a no-op when the next line isn't indented",
+          "[parser]") {
+  LineCursor  lines{"not indented\n"};
+  std::string field = "first line";
+
+  appendContinuation(lines, field);
+  CHECK(field == "first line");
+  // The unconsumed line is left for the caller to reprocess.
+  CHECK(lines.next() == "not indented");
+}
+
+TEST_CASE("appendContinuation stops at a directive even if indented",
+          "[parser]") {
+  LineCursor  lines{"  Q: next card\n"};
+  std::string field = "first line";
+
+  appendContinuation(lines, field);
+  CHECK(field == "first line");
+  CHECK(lines.lineNumber() == 0);
+}
+
+TEST_CASE("appendContinuation absorbs indented lines, stripping one indent "
+          "unit",
+          "[parser]") {
+  LineCursor  lines{"\tsecond line\n  third line\n"};
+  std::string field = "first line";
+
+  appendContinuation(lines, field);
+  CHECK(field == "first line\nsecond line\nthird line");
+  CHECK(lines.atEnd());
+}
+
+TEST_CASE("appendContinuation preserves a code line's own nested indentation",
+          "[parser]") {
+  LineCursor  lines{"\tif (n <= 1) {\n\t\treturn 1;\n\t}\n"};
+  std::string field = "base case:";
+
+  appendContinuation(lines, field);
+  CHECK(field == "base case:\nif (n <= 1) {\n\treturn 1;\n}");
+}
+
+TEST_CASE("appendContinuation tolerates a blank line inside an indented "
+          "block",
+          "[parser]") {
+  LineCursor  lines{"\tsecond line\n\n\tthird line after one blank\n"};
+  std::string field = "first line";
+
+  appendContinuation(lines, field);
+  CHECK(field == "first line\nsecond line\n\nthird line after one blank");
+  CHECK(lines.atEnd());
+}
+
+TEST_CASE("appendContinuation tolerates multiple blank lines inside a block",
+          "[parser]") {
+  LineCursor  lines{"\ta\n\n\n\tb\n"};
+  std::string field = "start";
+
+  appendContinuation(lines, field);
+  CHECK(field == "start\na\n\n\nb");
+}
+
+TEST_CASE("appendContinuation stops for good once the block dedents past "
+          "blank lines",
+          "[parser]") {
+  LineCursor  lines{"\tsecond line\n\nnot indented anymore\n"};
+  std::string field = "first line";
+
+  appendContinuation(lines, field);
+  CHECK(field == "first line\nsecond line");
+  // The blank line and the dedented line are both left unconsumed.
+  CHECK(lines.next() == "");
+  CHECK(lines.next() == "not indented anymore");
+}
+
+TEST_CASE("appendContinuation leaves blank lines unconsumed when the block "
+          "never resumes",
+          "[parser]") {
+  LineCursor  lines{"\tsecond line\n\n"};
+  std::string field = "first line";
+
+  appendContinuation(lines, field);
+  CHECK(field == "first line\nsecond line");
+  CHECK_FALSE(lines.atEnd());
+  CHECK(lines.next() == "");
+  CHECK(lines.atEnd());
+}
+
+TEST_CASE("parseMarkdown parses a multi-line question and answer", "[parser]") {
+  ParseResult res = parseMarkdown(
+      "Q: What are the five process states, and what triggers\n"
+      "  Ready to Running?\n"
+      "A: New, Ready, Running, Waiting, Terminated.\n"
+      "  The transition happens when the scheduler dispatches the process.\n");
+
+  REQUIRE(res.errors.empty());
+  REQUIRE(res.cards.size() == 1);
+  CHECK(res.cards[0].front ==
+        "What are the five process states, and what triggers\n"
+        "Ready to Running?");
+  CHECK(res.cards[0].back ==
+        "New, Ready, Running, Waiting, Terminated.\n"
+        "The transition happens when the scheduler dispatches the process.");
+}
+
+TEST_CASE("parseMarkdown parses a multi-line answer with a blank-line-"
+          "tolerant code block",
+          "[parser]") {
+  ParseResult res = parseMarkdown(
+      "Q: What does the base case look like?\n"
+      "A: It returns immediately without recursing:\n"
+      "\tif (n <= 1) {\n"
+      "\t\treturn 1;\n"
+      "\t}\n"
+      "\n"
+      "\treturn n * factorial(n - 1);\n");
+
+  REQUIRE(res.errors.empty());
+  REQUIRE(res.cards.size() == 1);
+  CHECK(res.cards[0].back ==
+        "It returns immediately without recursing:\n"
+        "if (n <= 1) {\n"
+        "\treturn 1;\n"
+        "}\n"
+        "\n"
+        "return n * factorial(n - 1);");
+}
+
+TEST_CASE("parseMarkdown does not swallow unindented prose after a card",
+          "[parser]") {
+  ParseResult res = parseMarkdown(
+      "Q: What's the key memory difference between a thread and a process?\n"
+      "A: Threads share the process's address space; each process has its "
+      "own.\n"
+      "Also need to re-read the mutex section before the exam.\n");
+
+  REQUIRE(res.errors.empty());
+  REQUIRE(res.cards.size() == 1);
+  CHECK(res.cards[0].back ==
+        "Threads share the process's address space; each process has its "
+        "own.");
+}
+
+TEST_CASE("parseMarkdown still parses single-line cards unchanged",
+          "[parser]") {
+  ParseResult res = parseMarkdown(
+      "Q: one\n"
+      "A: 1\n"
+      "\n"
+      "Q: two\n"
+      "A: 2\n");
+
+  REQUIRE(res.errors.empty());
+  REQUIRE(res.cards.size() == 2);
+  CHECK(res.cards[0].back == "1");
+  CHECK(res.cards[1].back == "2");
+}
+
+TEST_CASE("parseMarkdown parses a multi-line cloze card", "[parser]") {
+  ParseResult res = parseMarkdown(
+      "C: A thread has its own 1{stack}, 2{program counter}, and\n"
+      "  3{register set}, but shares the process's heap.\n");
+
+  REQUIRE(res.errors.empty());
+  REQUIRE(res.cards.size() == 1);
+  CHECK(res.cards[0].front ==
+        "A thread has its own {{c1::stack}}, {{c2::program counter}}, and\n"
+        "{{c3::register set}}, but shares the process's heap.");
+}

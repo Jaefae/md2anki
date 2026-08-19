@@ -10,6 +10,7 @@ A command-line tool that converts a lightweight, markdown-like plaintext format 
 - Reversible question/answer cards (`Qr:`/`Ar:`)
 - Deck and tag assignment per section
 - Multiple cloze deletions per card (`1{...}`, `2{...}`, ...)
+- Multi-line fields via indented continuation lines, with blank-line-tolerant code blocks
 - Strict mode to fail the build on malformed cards instead of skipping them
 - Directory input: recursively converts every `.md` file in a folder into one deck
 
@@ -81,6 +82,7 @@ produces `out.csv`, ready to import into Anki via **File > Import**:
 | `Q: ... / A: ...`  | Basic question/answer card                      |
 | `Qr: ... / Ar: ...`| Reversible question/answer card                 |
 | `C: ...`           | Cloze card; use `N{text}` for cloze deletion `N` (`1`-`99`) |
+| indented continuation line | Extends the previous `Q:`/`A:`/`Qr:`/`Ar:`/`C:` field onto another line. Indent with a tab or two spaces; a blank line is tolerated as long as the following line is still indented. |
 
 ## FAQ
 
@@ -88,11 +90,25 @@ produces `out.csv`, ready to import into Anki via **File > Import**:
 #tags: faq, tips
 Q: How do I reset tags/deck assignment?
 A: Declare an empty header.
-#tags:
-Q: How many tags should this card have?
-A: 0.
+
+#tags: multiline
+Q: What if my cards
+	Have a lot of information and
+	I can't fit them on one line?
+
+	Or code with empty indentations?
+	void foo() {
+		bar();
+
+		return;
+	}
+A: Tab-indented sections are added as newlines on a card.
+	They end when the indentation stops, and a blank line inside an indented block doesn't end the card early - only a dedent does.
 
 #tags: faq
+Q: Can a card's Q:/A:/C: field span multiple lines?
+A: Yes. Indent every continuation line with a tab (or two spaces) and it's folded onto the field. 
+
 Q: What happens to a card that fails to parse (e.g. a missing A: line)?
 A: It's skipped, logged as a [WARN], and the rest of the file still converts. Pass -s/--strict to abort the whole run instead.
 
