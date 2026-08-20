@@ -16,7 +16,7 @@ A command-line tool that converts a lightweight, markdown-like plaintext format 
 
 ## Building
 
-Requires CMake 3.x and a C++20 compiler.
+Requires CMake 3.x and a C++23 compiler.
 
 ```sh
 cmake -B build -S .
