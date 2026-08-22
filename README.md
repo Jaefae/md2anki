@@ -4,6 +4,8 @@
 
 A command-line tool that converts a lightweight, markdown-like plaintext format into an CSV deck importable to Anki.
 
+See [Releases](https://github.com/Jaefae/md2anki/releases) for pre-compiled binaries.
+
 ## Features
 
 - Simple `Q:`/`A:` and cloze (`C:`) card syntax
