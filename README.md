@@ -1,6 +1,6 @@
 # MD2Anki
 
-[![md2anki CI](https://github.com/Jaefae/md2anki/actions/workflows/c-cpp.yml/badge.svg)](https://github.com/Jaefae/md2anki/actions/workflows/c-cpp.yml)
+[![md2anki CI](https://github.com/Jaefae/md2anki/actions/workflows/ci.yml/badge.svg)](https://github.com/Jaefae/md2anki/actions/workflows/ci.yml)
 
 A command-line tool that converts a lightweight, markdown-like plaintext format into an CSV deck importable to Anki.
 
@@ -18,7 +18,7 @@ See [Releases](https://github.com/Jaefae/md2anki/releases) for pre-compiled bina
 
 ## Building
 
-Requires CMake 3.x and a C++20 compiler.
+Requires CMake 3.x and a C++23 compiler.
 
 ```sh
 cmake -B build -S .
