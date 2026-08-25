@@ -1,4 +1,4 @@
-# MD2Anki
+# md2anki
 
 [![md2anki CI](https://github.com/Jaefae/md2anki/actions/workflows/ci.yml/badge.svg)](https://github.com/Jaefae/md2anki/actions/workflows/ci.yml)
 
