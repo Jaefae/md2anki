@@ -1,6 +1,7 @@
 #include <iostream>
 #include <set>
 
+#include "ankiconnect.h"
 #include "cli.h"
 #include "io.h"
 #include "manifest.h"
@@ -38,11 +39,29 @@ int main(int argc, char* argv[]) {
     if (!card.id.empty()) currentIds.insert(card.id);
   }
 
-  if (!previous.source.empty() && previous.source != cfg.inputPath.string()) {
+  bool sourceMismatch =
+      !previous.source.empty() && previous.source != cfg.inputPath.string();
+  if (sourceMismatch) {
     std::cout << "[WARN] " << manifestFile.string() << " was built from '"
               << previous.source << "', not '" << cfg.inputPath.string()
               << "' -- skipping stale id check." << std::endl;
-  } else {
+  }
+
+  bool overallOk = true;
+
+  if (cfg.ankiConnect) {
+    if (cfg.strictWarn && !res.errors.empty()) {
+      std::cout
+          << "[ERROR] Cards not synced to Anki due to listed errors. (strict "
+             "warn mode)"
+          << std::endl;
+      overallOk = false;
+    } else {
+      Manifest ghostBaseline = sourceMismatch ? Manifest{} : previous;
+      overallOk &= syncToAnkiConnect(res, ghostBaseline, manifest, manifestFile,
+                                      cfg.ankiConnectUrl);
+    }
+  } else if (!sourceMismatch) {
     for (const auto& id : staleIds(previous, currentIds)) {
       std::cout << "[WARN] Card " << id
                 << " no longer found in source -- remove it from Anki "
@@ -51,18 +70,21 @@ int main(int argc, char* argv[]) {
     }
   }
 
-  if (saveFile(cfg, res)) {
-    std::cout << "[INFO] Cards output to " << absolute(cfg.outputPath).string()
-              << ".\n";
-    return 0;
-  } else {
-    if (cfg.strictWarn) {
-      std::cout
-          << "[ERROR] Cards not saved due to listed errors. (strict warn mode)"
-          << std::endl;
+  if (!cfg.outputPath.empty()) {
+    if (saveFile(cfg, res)) {
+      std::cout << "[INFO] Cards output to "
+                << absolute(cfg.outputPath).string() << ".\n";
+    } else {
+      overallOk = false;
+      if (cfg.strictWarn) {
+        std::cout << "[ERROR] Cards not saved due to listed errors. (strict "
+                     "warn mode)"
+                  << std::endl;
+      }
+      std::cout << "[ERROR] Cards could not be saved to "
+                << absolute(cfg.outputPath).string() << ".\n";
     }
-    std::cout << "[ERROR] Cards could not be saved to "
-              << absolute(cfg.outputPath).string() << ".\n";
-    return 1;
   }
+
+  return overallOk ? 0 : 1;
 }

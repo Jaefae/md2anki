@@ -16,6 +16,7 @@ See [Releases](https://github.com/Jaefae/md2anki/releases) for pre-compiled bina
 - Strict mode to fail the build on malformed cards instead of skipping them
 - Directory input: recursively converts every `.md` file in a folder into one deck
 - Stable card ids (`--write-ids`) so re-importing updates existing notes instead of duplicating them, and flags cards removed from source
+- `--anki-connect` pushes cards directly into a running Anki instance via the AnkiConnect add-on, instead of (or alongside) writing a CSV, including automatic deletion of notes for cards removed from source
 
 ## Building
 
@@ -37,11 +38,13 @@ ctest --test-dir build --output-on-failure
 ## Usage
 
 ```
-md2anki [inputPath] -o [outputPath] [flags]
+md2anki [inputPath] [-o outputPath] [--anki-connect] [flags]
 ```
 
 - `inputPath` — a `.md` file, or a directory to convert recursively
-- `-o outputPath` — destination `.csv` file (required)
+- `-o outputPath` — destination `.csv` file. Optional if `--anki-connect` is given, but at least one of the two is required.
+- `--anki-connect` — push cards directly into a running Anki instance via the [AnkiConnect](https://ankiweb.net/shared/info/2055492159) add-on, instead of or alongside `-o`. Implies `--write-ids`. Anki (with the AnkiConnect add-on installed) must be running; if it isn't reachable yet, md2anki waits and retries every few seconds until it is — press Ctrl+C to cancel instead of waiting.
+- `--anki-connect-url url` — override the AnkiConnect URL (default `http://127.0.0.1:8765`)
 - `-s`, `--strict` — abort without writing output if any card fails to parse
 - `--write-ids` — assign an id to every `Q:`/`Qr:`/`C:` card missing one and write it back into the source (implies `--strict`, so a run with parse errors never touches your files)
 
@@ -139,7 +142,10 @@ Q: Why does re-importing my deck create duplicate notes instead of updating them
 A: Anki's CSV importer matches notes by their first field's text, so editing a question's wording looks like a new card. Run `md2anki ... --write-ids` once to assign every card a stable id; the output CSV then carries a `#guid column` so Anki matches and updates existing notes on re-import instead.
 
 Q: I deleted a card from my notes. Does md2anki clean it up in Anki too?
-A: Not automatically — Anki's CSV import has no way to delete notes. Once you've used `--write-ids`, md2anki tracks every id it has assigned in a `.md2anki-ids` manifest next to your notes (or at the root of the folder, in directory mode) and prints a `[WARN]` for any id that's disappeared from source, so you know which note to remove from Anki by hand.
+A: With CSV import, not automatically — Anki's CSV import has no way to delete notes. Once you've used `--write-ids`, md2anki tracks every id it has assigned in a `.md2anki-ids` manifest next to your notes (or at the root of the folder, in directory mode) and prints a `[WARN]` for any id that's disappeared from source, so you know which note to remove from Anki by hand. If you sync with `--anki-connect` instead, md2anki deletes the corresponding Anki note(s) automatically via AnkiConnect, using the same manifest to detect which ids disappeared from source.
+
+Q: How does `--anki-connect` find the right note to update, if Anki's own note ids aren't the same as md2anki's?
+A: Every note synced via `--anki-connect` gets a hidden `md2anki-id:<id>` tag matching its stable id. Re-running the sync looks notes up by that tag to decide whether to update an existing note or add a new one, so the notes' Anki-internal ids never need to be tracked separately.
 ```
 
 More examples live in [`examples/`](examples/).
