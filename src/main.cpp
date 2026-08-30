@@ -1,7 +1,9 @@
 #include <iostream>
+#include <set>
 
 #include "cli.h"
 #include "io.h"
+#include "manifest.h"
 #define debug
 
 int main(int argc, char* argv[]) {
@@ -17,6 +19,38 @@ int main(int argc, char* argv[]) {
     std::cout << "[WARN] " << error.file.string() << ":" << error.lineNumber
               << " : " << error.message << std::endl;
   }
+
+  std::filesystem::path manifestFile = manifestPath(cfg.inputPath);
+  Manifest              manifest     = readManifest(manifestFile);
+  Manifest              previous     = manifest;
+
+  if (cfg.writeIds && res.errors.empty()) {
+    manifest.source = cfg.inputPath.string();
+    if (!applyWriteIds(res, manifest, manifestFile)) {
+      std::cout << "[ERROR] Could not write ids back to source files."
+                << std::endl;
+      return 1;
+    }
+  }
+
+  std::set<std::string> currentIds;
+  for (const auto& card : res.cards) {
+    if (!card.id.empty()) currentIds.insert(card.id);
+  }
+
+  if (!previous.source.empty() && previous.source != cfg.inputPath.string()) {
+    std::cout << "[WARN] " << manifestFile.string() << " was built from '"
+              << previous.source << "', not '" << cfg.inputPath.string()
+              << "' -- skipping stale id check." << std::endl;
+  } else {
+    for (const auto& id : staleIds(previous, currentIds)) {
+      std::cout << "[WARN] card " << id
+                << " no longer found in source -- remove it from Anki "
+                   "manually."
+                << std::endl;
+    }
+  }
+
   if (saveFile(cfg, res)) {
     std::cout << "[INFO] Cards output to " << absolute(cfg.outputPath).string()
               << ".\n";

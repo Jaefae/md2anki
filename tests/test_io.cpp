@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
+#include <set>
 #include <string>
 
 #include "cli.h"
@@ -173,6 +174,91 @@ TEST_CASE("saveFile writes the header and card rows", "[io]") {
   CHECK(contents.find("#separator:Comma") != std::string::npos);
   CHECK(contents.find("\"Deck\",\"tag\",Basic,\"front\",\"back\"") !=
         std::string::npos);
+}
+
+TEST_CASE("applyWriteIds assigns ids and patches only the Q:/C: lines",
+          "[io]") {
+  fs::path path = fs::temp_directory_path() / "md2anki_writeids.md";
+  writeFile(path,
+            "#deck: Deck\n"
+            "Q: front one\n"
+            "A: back one\n"
+            "\n"
+            "Q: front two\n"
+            "A: back two\n");
+
+  Cfg cfg{};
+  cfg.inputPath = path;
+  ParseResult res = parseFiles(cfg);
+  REQUIRE(res.cards.size() == 2);
+
+  Manifest manifest{};
+  fs::path manifestFile =
+      fs::temp_directory_path() / "md2anki_writeids_manifest";
+
+  REQUIRE(applyWriteIds(res, manifest, manifestFile));
+  CHECK_FALSE(res.cards[0].id.empty());
+  CHECK_FALSE(res.cards[1].id.empty());
+  CHECK(res.cards[0].id != res.cards[1].id);
+
+  std::string patched = readBack(path);
+  fs::remove(path);
+  fs::remove(manifestFile);
+
+  CHECK(patched == "#deck: Deck\n"
+                    "Q(" + res.cards[0].id + "): front one\n"
+                    "A: back one\n"
+                    "\n"
+                    "Q(" + res.cards[1].id + "): front two\n"
+                    "A: back two\n");
+  CHECK(manifest.ids == std::set<std::string>{res.cards[0].id, res.cards[1].id});
+}
+
+TEST_CASE("applyWriteIds is idempotent on cards that already have an id",
+          "[io]") {
+  fs::path path = fs::temp_directory_path() / "md2anki_writeids_idempotent.md";
+  writeFile(path, "Q: front\nA: back\n");
+
+  Cfg cfg{};
+  cfg.inputPath = path;
+  Manifest manifest{};
+  fs::path manifestFile =
+      fs::temp_directory_path() / "md2anki_writeids_idempotent_manifest";
+
+  ParseResult first = parseFiles(cfg);
+  REQUIRE(applyWriteIds(first, manifest, manifestFile));
+  std::string firstId = first.cards[0].id;
+
+  ParseResult second = parseFiles(cfg);
+  Manifest    reread  = readManifest(manifestFile);
+  REQUIRE(applyWriteIds(second, reread, manifestFile));
+  fs::remove(path);
+  fs::remove(manifestFile);
+
+  CHECK(second.cards[0].id == firstId);
+  CHECK(reread.ids == std::set<std::string>{firstId});
+}
+
+TEST_CASE("applyWriteIds fills the manifest's source from the caller",
+          "[io]") {
+  fs::path path = fs::temp_directory_path() / "md2anki_writeids_source.md";
+  writeFile(path, "Q: front\nA: back\n");
+
+  Cfg cfg{};
+  cfg.inputPath = path;
+  ParseResult res = parseFiles(cfg);
+
+  Manifest manifest{};
+  manifest.source = path.string();
+  fs::path manifestFile =
+      fs::temp_directory_path() / "md2anki_writeids_source_manifest";
+
+  REQUIRE(applyWriteIds(res, manifest, manifestFile));
+  Manifest written = readManifest(manifestFile);
+  fs::remove(path);
+  fs::remove(manifestFile);
+
+  CHECK(written.source == path.string());
 }
 
 TEST_CASE("saveFile refuses to write when strictWarn is set and errors exist",

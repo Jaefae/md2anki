@@ -1,4 +1,5 @@
 #pragma once
+#include <filesystem>
 #include <vector>
 #include <string>
 #include <string_view>
@@ -19,6 +20,9 @@ struct Card{
   std::string back;
   std::string deck;
   std::vector<std::string> tags;
+  std::string id;                    // empty until --write-ids assigns one
+  size_t lineNumber{0};              // source line the Q:/Qr:/C: tag starts on
+  std::filesystem::path file;        // source file this card was parsed from
   Card(std::string deck, std::vector<std::string>& tags, CardType type, std::string front, std::string back){
     this->deck = deck;
     this->tags = tags;
@@ -26,7 +30,7 @@ struct Card{
     this->front = front;
     this->back = back;
   }
-  std::string toCsv() const;
+  std::string toCsv(bool includeId = false) const;
 };
 
 /// Renders a full Anki CSV document (import headers + one row per card).

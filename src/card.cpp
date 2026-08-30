@@ -1,5 +1,6 @@
 #include "card.h"
 
+#include <algorithm>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -16,8 +17,11 @@ std::string escapeCSV(const std::string& text) {
   escaped << '\"';
   return escaped.str();
 }
-std::string Card::toCsv() const {
+std::string Card::toCsv(bool includeId) const {
   std::ostringstream output;
+  if (includeId) {
+    output << escapeCSV(id) << ',';
+  }
   // Deck
   output << escapeCSV(deck) << ',';
   // Tags
@@ -48,14 +52,21 @@ std::string Card::toCsv() const {
 };
 
 std::string toCsvDocument(const std::vector<Card>& cards) {
+  bool hasIds = std::any_of(cards.begin(), cards.end(),
+                            [](const Card& card) { return !card.id.empty(); });
+
   std::ostringstream output;
   output << "#separator:Comma\n";
   output << "#html:false\n";
-  output << "#deck column:1\n";
-  output << "#tags column:2\n";
-  output << "#notetype column:3\n";
+  int column = 1;
+  if (hasIds) {
+    output << "#guid column:" << column++ << "\n";
+  }
+  output << "#deck column:" << column++ << "\n";
+  output << "#tags column:" << column++ << "\n";
+  output << "#notetype column:" << column++ << "\n";
   for (const auto& card : cards) {
-    output << card.toCsv() << "\n";
+    output << card.toCsv(hasIds) << "\n";
   }
   return output.str();
 }

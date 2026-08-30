@@ -14,6 +14,8 @@ add_executable(md2anki_tests
   test_parser.cpp
   test_io.cpp
   test_examples.cpp
+  test_idgen.cpp
+  test_manifest.cpp
 )
 target_link_libraries(md2anki_tests PRIVATE md2anki_lib Catch2::Catch2WithMain)
 target_compile_definitions(md2anki_tests PRIVATE

@@ -41,6 +41,29 @@ std::string_view stripIndentMarker(std::string_view rawLine) {
   }
   return rawLine.substr(spaces);
 }
+
+struct TagMatch {
+  bool             matched{false};
+  std::string      id;
+  std::string_view rest;
+};
+
+/// Matches `tag:` or `tag(id):` at the start of `line`, `tag` compared
+/// case-insensitively. `tag` excludes the colon (e.g. "q", "qr", "c").
+TagMatch matchTag(std::string_view line, std::string_view tag) {
+  if (!toLower(line).starts_with(tag)) return {};
+
+  size_t      pos = tag.size();
+  std::string id;
+  if (pos < line.size() && line[pos] == '(') {
+    size_t close = line.find(')', pos);
+    if (close == std::string_view::npos) return {};
+    id  = std::string(line.substr(pos + 1, close - pos - 1));
+    pos = close + 1;
+  }
+  if (pos >= line.size() || line[pos] != ':') return {};
+  return {true, id, line.substr(pos + 1)};
+}
 }  // namespace
 
 std::string_view LineCursor::peek() const {
@@ -105,9 +128,9 @@ bool isDirectiveLine(std::string_view line) {
   if (line.empty()) return false;
   if (line.starts_with('#')) return true;
   std::string lower = toLower(line);
-  return lower.starts_with("qr:") || lower.starts_with("q:") ||
-         lower.starts_with("ar:") || lower.starts_with("a:") ||
-         lower.starts_with("c:");
+  return matchTag(line, "q").matched || matchTag(line, "qr").matched ||
+         matchTag(line, "c").matched || lower.starts_with("ar:") ||
+         lower.starts_with("a:");
 }
 
 void appendContinuation(LineCursor& lines, std::string& field) {
@@ -189,7 +212,6 @@ ParseResult parseMarkdown(std::string_view text, const fs::path& origin) {
   while (!lines.atEnd()) {
     std::string_view line       = ltrim(lines.next());
     size_t           lineNumber = lines.lineNumber();
-    std::string      lowerLine  = toLower(line);
 
     if (line.empty()) continue;   // Skip empty lines
     if (line.starts_with('#')) {  // If line is a header
@@ -206,39 +228,45 @@ ParseResult parseMarkdown(std::string_view text, const fs::path& origin) {
         currentDeck = ltrim(header.substr(deckAt + 5));
       }
 
-    } else if (lowerLine.starts_with("q:")) {  // Line is a question
-      std::string front{ltrim(line.substr(2))};
+    } else if (TagMatch q = matchTag(line, "q"); q.matched) {  // A question
+      std::string front{ltrim(q.rest)};
       appendContinuation(lines, front);
       std::string back;
       if (parsePair(lines, back, "a:")) {
         appendContinuation(lines, back);
         res.cards.emplace_back(currentDeck, currentTags, CardType::QA, front,
                                back);
+        res.cards.back().id         = q.id;
+        res.cards.back().lineNumber = lineNumber;
       } else {
         res.errors.push_back(
             {origin, lineNumber,
              "Missing answer pair to question: '" + front + "'"});
       }
-    } else if (lowerLine.starts_with("qr:")) {
-      std::string front{ltrim(line.substr(3))};
+    } else if (TagMatch qr = matchTag(line, "qr"); qr.matched) {
+      std::string front{ltrim(qr.rest)};
       appendContinuation(lines, front);
       std::string back;
       if (parsePair(lines, back, "ar:")) {
         appendContinuation(lines, back);
         res.cards.emplace_back(currentDeck, currentTags, CardType::QAR, front,
                                back);
+        res.cards.back().id         = qr.id;
+        res.cards.back().lineNumber = lineNumber;
       } else {
         res.errors.push_back(
             {origin, lineNumber,
              "Missing answer pair to question: '" + front + "'"});
       }
-    } else if (lowerLine.starts_with("c:")) {
-      std::string front{ltrim(line.substr(2))};
+    } else if (TagMatch c = matchTag(line, "c"); c.matched) {
+      std::string front{ltrim(c.rest)};
       appendContinuation(lines, front);
       switch (toCloze(front)) {
         case ClozeStatus::Ok:
           res.cards.emplace_back(currentDeck, currentTags, CardType::Cloze,
                                  front, "");
+          res.cards.back().id         = c.id;
+          res.cards.back().lineNumber = lineNumber;
           break;
         case ClozeStatus::UnclosedBracket:
           res.errors.push_back(

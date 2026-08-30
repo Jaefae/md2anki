@@ -15,6 +15,7 @@ See [Releases](https://github.com/Jaefae/md2anki/releases) for pre-compiled bina
 - Multi-line fields via indented continuation lines, with blank-line-tolerant code blocks
 - Strict mode to fail the build on malformed cards instead of skipping them
 - Directory input: recursively converts every `.md` file in a folder into one deck
+- Stable card ids (`--write-ids`) so re-importing updates existing notes instead of duplicating them, and flags cards removed from source
 
 ## Building
 
@@ -42,6 +43,7 @@ md2anki [inputPath] -o [outputPath] [flags]
 - `inputPath` — a `.md` file, or a directory to convert recursively
 - `-o outputPath` — destination `.csv` file (required)
 - `-s`, `--strict` — abort without writing output if any card fails to parse
+- `--write-ids` — assign an id to every `Q:`/`Qr:`/`C:` card missing one and write it back into the source (implies `--strict`, so a run with parse errors never touches your files)
 
 ### Example
 
@@ -84,6 +86,7 @@ produces `out.csv`, ready to import into Anki via **File > Import**:
 | `Q: ... / A: ...`  | Basic question/answer card                      |
 | `Qr: ... / Ar: ...`| Reversible question/answer card                 |
 | `C: ...`           | Cloze card; use `N{text}` for cloze deletion `N` (`1`-`99`) |
+| `Q(id): ...`, `Qr(id): ...`, `C(id): ...` | Same cards, carrying a stable id. Written by `--write-ids`, not meant to be typed by hand. |
 | indented continuation line | Extends the previous `Q:`/`A:`/`Qr:`/`Ar:`/`C:` field onto another line. Indent with a tab or two spaces; a blank line is tolerated as long as the following line is still indented. |
 
 ## FAQ
@@ -131,6 +134,12 @@ A: 1 through 99, matching Anki. 0{...} or 100{...} is reported as an error inste
 
 Q: My card imported with no notetype or is missing fields in Anki. What's wrong?
 A: Anki must have Basic, Basic (and reversed card), and Cloze note types available, and the CSV import should map the header columns already present in the output file.
+
+Q: Why does re-importing my deck create duplicate notes instead of updating them?
+A: Anki's CSV importer matches notes by their first field's text, so editing a question's wording looks like a new card. Run `md2anki ... --write-ids` once to assign every card a stable id; the output CSV then carries a `#guid column` so Anki matches and updates existing notes on re-import instead.
+
+Q: I deleted a card from my notes. Does md2anki clean it up in Anki too?
+A: Not automatically — Anki's CSV import has no way to delete notes. Once you've used `--write-ids`, md2anki tracks every id it has assigned in a `.md2anki-ids` manifest next to your notes (or at the root of the folder, in directory mode) and prints a `[WARN]` for any id that's disappeared from source, so you know which note to remove from Anki by hand.
 ```
 
 More examples live in [`examples/`](examples/).
