@@ -44,7 +44,7 @@ int main(int argc, char* argv[]) {
               << "' -- skipping stale id check." << std::endl;
   } else {
     for (const auto& id : staleIds(previous, currentIds)) {
-      std::cout << "[WARN] card " << id
+      std::cout << "[WARN] Card " << id
                 << " no longer found in source -- remove it from Anki "
                    "manually."
                 << std::endl;
