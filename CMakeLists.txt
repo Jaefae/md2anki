@@ -11,7 +11,11 @@ file(GLOB LIB_SOURCES "src/*.cpp")
 list(REMOVE_ITEM LIB_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp")
 
 add_library(md2anki_lib STATIC ${LIB_SOURCES})
-target_include_directories(md2anki_lib PUBLIC include)
+target_include_directories(md2anki_lib PUBLIC include third_party)
+
+if(WIN32)
+  target_link_libraries(md2anki_lib PUBLIC ws2_32)
+endif()
 
 add_executable(md2anki src/main.cpp)
 target_link_libraries(md2anki PRIVATE md2anki_lib)
