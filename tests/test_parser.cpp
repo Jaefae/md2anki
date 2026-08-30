@@ -391,6 +391,46 @@ TEST_CASE("parseMarkdown returns nothing for empty input", "[parser]") {
   CHECK(res.errors.empty());
 }
 
+TEST_CASE("parseMarkdown reads an inline id on a question", "[parser]") {
+  ParseResult res = parseMarkdown("Q(4be3): How will ids look?\nA: like this!\n");
+
+  REQUIRE(res.cards.size() == 1);
+  CHECK(res.cards[0].id == "4be3");
+  CHECK(res.cards[0].front == "How will ids look?");
+  CHECK(res.cards[0].lineNumber == 1);
+}
+
+TEST_CASE("parseMarkdown reads an inline id on a reversible question",
+          "[parser]") {
+  ParseResult res = parseMarkdown("Qr(ab12): front\nAr: back\n");
+
+  REQUIRE(res.cards.size() == 1);
+  CHECK(res.cards[0].id == "ab12");
+  CHECK(res.cards[0].front == "front");
+}
+
+TEST_CASE("parseMarkdown reads an inline id on a cloze", "[parser]") {
+  ParseResult res = parseMarkdown("C(cd34): 1{answer} is here\n");
+
+  REQUIRE(res.cards.size() == 1);
+  CHECK(res.cards[0].id == "cd34");
+}
+
+TEST_CASE("parseMarkdown leaves id empty when the tag carries none",
+          "[parser]") {
+  ParseResult res = parseMarkdown("Q: no id\nA: none\n");
+
+  REQUIRE(res.cards.size() == 1);
+  CHECK(res.cards[0].id.empty());
+}
+
+TEST_CASE("parseMarkdown reads an inline id case-insensitively", "[parser]") {
+  ParseResult res = parseMarkdown("q(4be3): lower tag\na: lower answer\n");
+
+  REQUIRE(res.cards.size() == 1);
+  CHECK(res.cards[0].id == "4be3");
+}
+
 TEST_CASE("isDirectiveLine recognizes headers and card markers", "[parser]") {
   CHECK(isDirectiveLine("#deck: X"));
   CHECK(isDirectiveLine("Q: x"));
@@ -398,6 +438,8 @@ TEST_CASE("isDirectiveLine recognizes headers and card markers", "[parser]") {
   CHECK(isDirectiveLine("A: x"));
   CHECK(isDirectiveLine("ar: x"));
   CHECK(isDirectiveLine("C: x"));
+  CHECK(isDirectiveLine("Q(4be3): x"));
+  CHECK(isDirectiveLine("qr(ab12): x"));
   CHECK_FALSE(isDirectiveLine("just prose"));
   CHECK_FALSE(isDirectiveLine(""));
 }

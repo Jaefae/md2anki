@@ -53,11 +53,18 @@ bool Cfg::fromArgs(const int argc, char* argv[]) {
     bool                   knownArg = false;
     if (arg == "-s" || arg == "--strict")
       this->strictWarn = true;
-    else {
+    else if (arg == "--write-ids") {
+      this->writeIds   = true;
+      this->strictWarn = true;
+    } else {
       std::cout << "[ERROR] Unknown argument. " << usage << std::endl;
       std::cout << "[INFO] Optional arguments: " << std::endl
                 << "\t-s, --strict" << std::setw(20)
                 << ": Stop compilation on error instead of skipping."
+                << std::endl
+                << "\t--write-ids" << std::setw(21)
+                << ": Assign ids to cards missing one and write them back "
+                   "to source (implies --strict)."
                 << std::endl;
       return false;
     }

@@ -67,6 +67,44 @@ TEST_CASE("toCsvDocument writes the Anki import headers", "[card]") {
         "#notetype column:3\n");
 }
 
+TEST_CASE("toCsvDocument omits the guid column when no card has an id",
+          "[card]") {
+  std::vector<std::string> tags{};
+  std::vector<Card>        cards{Card("Deck", tags, CardType::QA, "q", "a")};
+
+  std::string doc = toCsvDocument(cards);
+  CHECK(doc.find("#guid column") == std::string::npos);
+  CHECK(doc.find("\"Deck\",\"\",Basic,\"q\",\"a\"") != std::string::npos);
+}
+
+TEST_CASE("toCsvDocument adds a guid column when any card has an id",
+          "[card]") {
+  std::vector<std::string> tags{};
+  std::vector<Card>        cards{Card("Deck", tags, CardType::QA, "q", "a")};
+  cards[0].id = "4be3";
+
+  std::string doc = toCsvDocument(cards);
+  CHECK(doc.find("#guid column:1\n") != std::string::npos);
+  CHECK(doc.find("#deck column:2\n") != std::string::npos);
+  CHECK(doc.find("\"4be3\",\"Deck\",\"\",Basic,\"q\",\"a\"") !=
+        std::string::npos);
+}
+
+TEST_CASE("toCsvDocument leaves a card's own guid column blank when it has "
+          "no id",
+          "[card]") {
+  std::vector<std::string> tags{};
+  std::vector<Card>        cards{
+      Card("Deck", tags, CardType::QA, "with id", "a"),
+      Card("Deck", tags, CardType::QA, "without id", "a"),
+  };
+  cards[0].id = "4be3";
+
+  std::string doc = toCsvDocument(cards);
+  CHECK(doc.find("\"\",\"Deck\",\"\",Basic,\"without id\",\"a\"") !=
+        std::string::npos);
+}
+
 TEST_CASE("toCsvDocument appends one newline-terminated row per card",
           "[card]") {
   std::vector<std::string> tags{"tag"};

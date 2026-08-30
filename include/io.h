@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "cli.h"
+#include "manifest.h"
 #include "parser.h"
 
 /// Every .md file under `path` (recursively, sorted), or `path` itself when it
@@ -19,3 +20,10 @@ bool readTextFile(const std::filesystem::path& path, std::string& out);
 ParseResult parseFiles(const Cfg& cfg);
 
 bool saveFile(const Cfg& cfg, ParseResult& res);
+
+/// Assigns an id to every card in `res` missing one, patches the owning
+/// source files in place, and writes `manifest` (updated with the new
+/// ids) to `manifestFile`. Returns false if a source file can't be read
+/// or rewritten.
+bool applyWriteIds(ParseResult& res, Manifest& manifest,
+                    const std::filesystem::path& manifestFile);
