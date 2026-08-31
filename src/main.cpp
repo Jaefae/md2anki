@@ -43,7 +43,7 @@ int main(int argc, char* argv[]) {
   if (sourceMismatch) {
     std::cout << "[WARN] " << manifestFile.string() << " was built from '"
               << previous.source << "', not '" << cfg.inputPath.string()
-              << "' -- skipping stale id check." << std::endl;
+              << "'skipping stale id check." << std::endl;
   }
 
   bool overallOk = true;
@@ -58,12 +58,16 @@ int main(int argc, char* argv[]) {
     } else {
       Manifest ghostBaseline = sourceMismatch ? Manifest{} : previous;
       overallOk &= syncToAnkiConnect(res, ghostBaseline, manifest, manifestFile,
-                                      cfg.ankiConnectUrl);
+                                     cfg.ankiConnectUrl);
+      if (overallOk) {
+        std::cout << "[INFO] " << res.cards.size()
+                  << " cards posted via anki-connect.";
+      }
     }
   } else if (!sourceMismatch) {
     for (const auto& id : staleIds(previous, currentIds)) {
       std::cout << "[WARN] Card " << id
-                << " no longer found in source -- remove it from Anki "
+                << " no longer found in source, remove it from Anki "
                    "manually."
                 << std::endl;
     }
