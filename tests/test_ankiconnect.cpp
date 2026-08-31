@@ -33,6 +33,17 @@ std::string actionOf(const std::string& body) {
 fs::path tempManifestPath(const std::string& name) {
   return fs::temp_directory_path() / name;
 }
+
+/// Builds a notesInfo response body for the given (noteId, extraTag) pairs,
+/// tagging each note with md2anki-id:<extraTag>.
+std::string notesInfoResponse(const std::vector<std::pair<int64_t, std::string>>& notes) {
+  json result = json::array();
+  for (const auto& [noteId, id] : notes) {
+    result.push_back(json{{"noteId", noteId}, {"tags", json::array({"md2anki-id:" + id})}});
+  }
+  json response{{"result", result}, {"error", nullptr}};
+  return response.dump();
+}
 }  // namespace
 
 // --- Payload builders -------------------------------------------------
@@ -94,21 +105,24 @@ TEST_CASE("syncToAnkiConnect adds a card with no existing Anki note",
   Manifest manifest;
   fs::path manifestFile = tempManifestPath("md2anki_ac_add");
 
-  bool sawFind = false, sawAdd = false, sawUpdate = false;
+  bool sawFind = false, sawAdd = false, sawNotesInfo = false, sawMulti = false;
   PostFn fake = [&](const std::string&, const std::string& body,
                      std::string& outResponse) {
     std::string action = actionOf(body);
     if (action == "findNotes") {
       sawFind = true;
       outResponse = R"({"result": [], "error": null})";
+    } else if (action == "notesInfo") {
+      sawNotesInfo = true;
+      outResponse = R"({"result": [], "error": null})";
     } else if (action == "createDeck") {
       outResponse = R"({"result": 1, "error": null})";
     } else if (action == "addNotes") {
       sawAdd = true;
       outResponse = R"({"result": [123], "error": null})";
-    } else if (action == "updateNoteFields" || action == "updateNoteTags") {
-      sawUpdate = true;
-      outResponse = R"({"result": null, "error": null})";
+    } else if (action == "multi") {
+      sawMulti = true;
+      outResponse = R"({"result": [], "error": null})";
     }
     return true;
   };
@@ -120,7 +134,9 @@ TEST_CASE("syncToAnkiConnect adds a card with no existing Anki note",
   CHECK(ok);
   CHECK(sawFind);
   CHECK(sawAdd);
-  CHECK_FALSE(sawUpdate);
+  // findNotes returned no matches, so notesInfo/multi never need to run.
+  CHECK_FALSE(sawNotesInfo);
+  CHECK_FALSE(sawMulti);
 }
 
 TEST_CASE("syncToAnkiConnect creates missing decks before adding notes",
@@ -179,15 +195,23 @@ TEST_CASE("syncToAnkiConnect updates a card matched by its id tag",
     std::string action = actionOf(body);
     if (action == "findNotes") {
       outResponse = R"({"result": [555], "error": null})";
+    } else if (action == "notesInfo") {
+      outResponse = notesInfoResponse({{555, "aaaaaaaa"}});
     } else if (action == "addNotes") {
       sawAdd = true;
       outResponse = R"({"result": [], "error": null})";
-    } else if (action == "updateNoteFields") {
-      updateFieldsNoteId = json::parse(body)["params"]["note"]["id"].get<int>();
-      outResponse = R"({"result": null, "error": null})";
-    } else if (action == "updateNoteTags") {
-      updateTagsNoteId = json::parse(body)["params"]["note"].get<int>();
-      outResponse = R"({"result": null, "error": null})";
+    } else if (action == "multi") {
+      json actions = json::parse(body)["params"]["actions"];
+      json subResults = json::array();
+      for (const auto& sub : actions) {
+        if (sub["action"] == "updateNoteFields") {
+          updateFieldsNoteId = sub["params"]["note"]["id"].get<int>();
+        } else if (sub["action"] == "updateNoteTags") {
+          updateTagsNoteId = sub["params"]["note"].get<int>();
+        }
+        subResults.push_back(nullptr);  // real AnkiConnect returns the raw success value
+      }
+      outResponse = json{{"result", subResults}, {"error", nullptr}}.dump();
     }
     return true;
   };
@@ -216,9 +240,19 @@ TEST_CASE("syncToAnkiConnect updates only the first note on multiple matches",
     std::string action = actionOf(body);
     if (action == "findNotes") {
       outResponse = R"({"result": [555, 556], "error": null})";
-    } else if (action == "updateNoteFields") {
-      updateFieldsNoteId = json::parse(body)["params"]["note"]["id"].get<int>();
-      outResponse = R"({"result": null, "error": null})";
+    } else if (action == "notesInfo") {
+      // Two Anki notes accidentally share the same md2anki-id tag.
+      outResponse = notesInfoResponse({{555, "aaaaaaaa"}, {556, "aaaaaaaa"}});
+    } else if (action == "multi") {
+      json actions = json::parse(body)["params"]["actions"];
+      json subResults = json::array();
+      for (const auto& sub : actions) {
+        if (sub["action"] == "updateNoteFields") {
+          updateFieldsNoteId = sub["params"]["note"]["id"].get<int>();
+        }
+        subResults.push_back(nullptr);  // real AnkiConnect returns the raw success value
+      }
+      outResponse = json{{"result", subResults}, {"error", nullptr}}.dump();
     } else {
       outResponse = R"({"result": null, "error": null})";
     }
@@ -231,6 +265,39 @@ TEST_CASE("syncToAnkiConnect updates only the first note on multiple matches",
 
   CHECK(ok);
   CHECK(updateFieldsNoteId == 555);
+}
+
+TEST_CASE("syncToAnkiConnect surfaces a failed update from a multi response "
+          "without crashing",
+          "[ankiconnect]") {
+  // Real AnkiConnect wraps only a *failed* sub-action as {"result":null,
+  // "error":"..."}; a successful one is just its own raw (often scalar or
+  // null) result. Parsing must not assume every entry is an object.
+  ParseResult res;
+  res.cards.push_back(makeCard(CardType::QA, "aaaaaaaa"));
+  Manifest previous{"src", {"aaaaaaaa"}};
+  Manifest manifest = previous;
+  fs::path manifestFile = tempManifestPath("md2anki_ac_multi_partial_fail");
+
+  PostFn fake = [&](const std::string&, const std::string& body,
+                     std::string& outResponse) {
+    std::string action = actionOf(body);
+    if (action == "findNotes") {
+      outResponse = R"({"result": [555], "error": null})";
+    } else if (action == "notesInfo") {
+      outResponse = notesInfoResponse({{555, "aaaaaaaa"}});
+    } else if (action == "multi") {
+      outResponse =
+          R"({"result": [null, {"result": null, "error": "Note was not found: 555"}], "error": null})";
+    }
+    return true;
+  };
+
+  bool ok = syncToAnkiConnect(res, previous, manifest, manifestFile,
+                               "http://fake", fake);
+  fs::remove(manifestFile);
+
+  CHECK_FALSE(ok);
 }
 
 // --- Ghost deletion -----------------------------------------------------
@@ -248,6 +315,8 @@ TEST_CASE("syncToAnkiConnect deletes ghost notes and drops them from the manifes
     std::string action = actionOf(body);
     if (action == "findNotes") {
       outResponse = R"({"result": [999], "error": null})";
+    } else if (action == "notesInfo") {
+      outResponse = notesInfoResponse({{999, "deadbeef"}});
     } else if (action == "deleteNotes") {
       sawDelete = true;
       outResponse = R"({"result": null, "error": null})";
@@ -278,6 +347,8 @@ TEST_CASE("syncToAnkiConnect keeps a ghost id in the manifest when deletion fail
     std::string action = actionOf(body);
     if (action == "findNotes") {
       outResponse = R"({"result": [999], "error": null})";
+    } else if (action == "notesInfo") {
+      outResponse = notesInfoResponse({{999, "deadbeef"}});
     } else if (action == "deleteNotes") {
       outResponse = R"({"result": null, "error": "deck was locked"})";
     }
