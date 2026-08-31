@@ -43,7 +43,7 @@ int main(int argc, char* argv[]) {
   if (sourceMismatch) {
     std::cout << "[WARN] " << manifestFile.string() << " was built from '"
               << previous.source << "', not '" << cfg.inputPath.string()
-              << "'skipping stale id check." << std::endl;
+              << "' -- skipping stale id check." << std::endl;
   }
 
   bool overallOk = true;
@@ -61,7 +61,7 @@ int main(int argc, char* argv[]) {
                                      cfg.ankiConnectUrl);
       if (overallOk) {
         std::cout << "[INFO] " << res.cards.size()
-                  << " cards posted via anki-connect.";
+                  << " cards posted via anki-connect." << std::endl;
       }
     }
   } else if (!sourceMismatch) {
