@@ -63,3 +63,33 @@ TEST_CASE("staleIds is empty when nothing was removed", "[manifest]") {
 
   CHECK(staleIds(previous, current).empty());
 }
+
+TEST_CASE("sameSource matches an empty previous source", "[manifest]") {
+  CHECK(sameSource("", fs::temp_directory_path()));
+}
+
+TEST_CASE("sameSource matches identical relative and absolute paths",
+          "[manifest]") {
+  fs::path dir = fs::temp_directory_path() / "md2anki_samesource_dir";
+  fs::create_directories(dir);
+
+  fs::path previousCwd = fs::current_path();
+  fs::current_path(dir.parent_path());
+  CHECK(sameSource(dir.filename().string(), dir));
+  fs::current_path(previousCwd);
+
+  fs::remove_all(dir);
+}
+
+TEST_CASE("sameSource does not match genuinely different vaults",
+          "[manifest]") {
+  fs::path dirA = fs::temp_directory_path() / "md2anki_samesource_a";
+  fs::path dirB = fs::temp_directory_path() / "md2anki_samesource_b";
+  fs::create_directories(dirA);
+  fs::create_directories(dirB);
+
+  CHECK_FALSE(sameSource(dirA.string(), dirB));
+
+  fs::remove_all(dirA);
+  fs::remove_all(dirB);
+}

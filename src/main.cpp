@@ -39,8 +39,7 @@ int main(int argc, char* argv[]) {
     if (!card.id.empty()) currentIds.insert(card.id);
   }
 
-  bool sourceMismatch =
-      !previous.source.empty() && previous.source != cfg.inputPath.string();
+  bool sourceMismatch = !sameSource(previous.source, cfg.inputPath);
   if (sourceMismatch) {
     std::cout << "[WARN] " << manifestFile.string() << " was built from '"
               << previous.source << "', not '" << cfg.inputPath.string()
