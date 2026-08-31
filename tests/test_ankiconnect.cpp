@@ -1,6 +1,7 @@
 #include "ankiconnect.h"
 
 #include <catch2/catch_test_macros.hpp>
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <filesystem>
@@ -100,6 +101,8 @@ TEST_CASE("syncToAnkiConnect adds a card with no existing Anki note",
     if (action == "findNotes") {
       sawFind = true;
       outResponse = R"({"result": [], "error": null})";
+    } else if (action == "createDeck") {
+      outResponse = R"({"result": 1, "error": null})";
     } else if (action == "addNotes") {
       sawAdd = true;
       outResponse = R"({"result": [123], "error": null})";
@@ -118,6 +121,46 @@ TEST_CASE("syncToAnkiConnect adds a card with no existing Anki note",
   CHECK(sawFind);
   CHECK(sawAdd);
   CHECK_FALSE(sawUpdate);
+}
+
+TEST_CASE("syncToAnkiConnect creates missing decks before adding notes",
+          "[ankiconnect]") {
+  ParseResult res;
+  res.cards.push_back(makeCard(CardType::QA, "aaaaaaaa", "Q1", "A1", "DeckA"));
+  res.cards.push_back(makeCard(CardType::QA, "bbbbbbbb", "Q2", "A2", "DeckB"));
+  Manifest previous;
+  Manifest manifest;
+  fs::path manifestFile = tempManifestPath("md2anki_ac_deck_create");
+
+  std::vector<std::string> createdDecks;
+  bool                     sawAddNotes = false;
+  PostFn fake = [&](const std::string&, const std::string& body,
+                     std::string& outResponse) {
+    json request = json::parse(body);
+    std::string action = request.value("action", std::string());
+    if (action == "findNotes") {
+      outResponse = R"({"result": [], "error": null})";
+    } else if (action == "createDeck") {
+      createdDecks.push_back(request["params"]["deck"].get<std::string>());
+      outResponse = R"({"result": 1, "error": null})";
+    } else if (action == "addNotes") {
+      sawAddNotes = true;
+      outResponse = R"({"result": [111, 112], "error": null})";
+    }
+    return true;
+  };
+
+  bool ok = syncToAnkiConnect(res, previous, manifest, manifestFile,
+                               "http://fake", fake);
+  fs::remove(manifestFile);
+
+  CHECK(ok);
+  CHECK(sawAddNotes);
+  REQUIRE(createdDecks.size() == 2);
+  CHECK(std::find(createdDecks.begin(), createdDecks.end(), "DeckA") !=
+        createdDecks.end());
+  CHECK(std::find(createdDecks.begin(), createdDecks.end(), "DeckB") !=
+        createdDecks.end());
 }
 
 TEST_CASE("syncToAnkiConnect updates a card matched by its id tag",

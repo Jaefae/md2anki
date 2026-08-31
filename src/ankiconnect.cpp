@@ -189,6 +189,29 @@ bool addOrUpdateCard(Card& card, const std::string& url, PostFn postFn,
   }
   return true;
 }
+/// AnkiConnect's addNotes rejects any note whose deck doesn't already exist
+/// (unlike Anki's CSV importer, which creates missing decks implicitly), so
+/// every deck referenced by a pending add must be created first. createDeck
+/// is idempotent -- it's a no-op, not an error, when the deck already exists.
+bool ensureDecksExist(const std::vector<json>& pendingAdds, const std::string& url,
+                       PostFn postFn) {
+  std::set<std::string> deckNames;
+  for (const auto& note : pendingAdds) {
+    deckNames.insert(note.at("deckName").get<std::string>());
+  }
+
+  bool ok = true;
+  for (const auto& deck : deckNames) {
+    AnkiConnectReply createReply =
+        ankiConnectInvoke("createDeck", json{{"deck", deck}}, url, postFn);
+    if (!createReply.ok) {
+      std::cout << "[WARN] Could not create Anki deck '" << deck
+                 << "': " << createReply.error << std::endl;
+      ok = false;
+    }
+  }
+  return ok;
+}
 }  // namespace
 
 bool syncToAnkiConnect(ParseResult& res, const Manifest& previous, Manifest& manifest,
@@ -209,6 +232,8 @@ bool syncToAnkiConnect(ParseResult& res, const Manifest& previous, Manifest& man
   }
 
   if (!pendingAdds.empty()) {
+    if (!ensureDecksExist(pendingAdds, url, postFn)) overallOk = false;
+
     AnkiConnectReply addReply =
         ankiConnectInvoke("addNotes", json{{"notes", pendingAdds}}, url, postFn);
     if (!addReply.ok) {
