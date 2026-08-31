@@ -40,3 +40,13 @@ std::vector<std::string> staleIds(const Manifest&              previous,
   }
   return stale;
 }
+
+bool sameSource(const std::string& previousSource, const fs::path& inputPath) {
+  if (previousSource.empty()) return true;
+
+  std::error_code ec1, ec2;
+  fs::path        prevCanonical = fs::weakly_canonical(previousSource, ec1);
+  fs::path        currCanonical = fs::weakly_canonical(inputPath, ec2);
+  if (ec1 || ec2) return previousSource == inputPath.string();
+  return prevCanonical == currCanonical;
+}

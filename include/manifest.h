@@ -20,3 +20,11 @@ void     writeManifest(const std::filesystem::path& path, const Manifest& manife
 /// Ids present in `previous` but not in `current`.
 std::vector<std::string> staleIds(const Manifest&              previous,
                                    const std::set<std::string>& current);
+
+/// True if `previousSource` and `inputPath` refer to the same vault, even
+/// when recorded with a different path representation (relative vs.
+/// absolute, different working directory, etc). An empty `previousSource`
+/// (no prior record) counts as a match. Falls back to a literal string
+/// comparison if either path can't be resolved (e.g. it no longer exists).
+bool sameSource(const std::string&            previousSource,
+                 const std::filesystem::path& inputPath);

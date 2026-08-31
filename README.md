@@ -43,7 +43,7 @@ md2anki [inputPath] [-o outputPath] [--anki-connect] [flags]
 
 - `inputPath` — a `.md` file, or a directory to convert recursively
 - `-o outputPath` — destination `.csv` file. Optional if `--anki-connect` is given, but at least one of the two is required.
-- `--anki-connect` — push cards directly into a running Anki instance via the [AnkiConnect](https://ankiweb.net/shared/info/2055492159) add-on, instead of or alongside `-o`. Implies `--write-ids`. Anki (with the AnkiConnect add-on installed) must be running; if it isn't reachable yet, md2anki waits and retries every few seconds until it is — press Ctrl+C to cancel instead of waiting.
+- `--anki-connect` — push cards directly into a running Anki instance via the [AnkiConnect](https://ankiweb.net/shared/info/2055492159) add-on, instead of or alongside `-o`. Implies `--write-ids`. Anki (with the AnkiConnect add-on installed) must be running; if it isn't reachable yet, md2anki waits and retries every few seconds until it is — press Ctrl+C to cancel instead of waiting. Decks referenced by `#deck:` that don't exist yet in Anki are created automatically.
 - `--anki-connect-url url` — override the AnkiConnect URL (default `http://127.0.0.1:8765`)
 - `-s`, `--strict` — abort without writing output if any card fails to parse
 - `--write-ids` — assign an id to every `Q:`/`Qr:`/`C:` card missing one and write it back into the source (implies `--strict`, so a run with parse errors never touches your files)
