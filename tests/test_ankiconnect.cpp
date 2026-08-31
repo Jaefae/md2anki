@@ -173,6 +173,7 @@ TEST_CASE("syncToAnkiConnect updates a card matched by its id tag",
 
   bool sawAdd = false;
   int  updateFieldsNoteId = -1;
+  int  updateTagsNoteId   = -1;
   PostFn fake = [&](const std::string&, const std::string& body,
                      std::string& outResponse) {
     std::string action = actionOf(body);
@@ -185,6 +186,7 @@ TEST_CASE("syncToAnkiConnect updates a card matched by its id tag",
       updateFieldsNoteId = json::parse(body)["params"]["note"]["id"].get<int>();
       outResponse = R"({"result": null, "error": null})";
     } else if (action == "updateNoteTags") {
+      updateTagsNoteId = json::parse(body)["params"]["note"].get<int>();
       outResponse = R"({"result": null, "error": null})";
     }
     return true;
@@ -197,6 +199,7 @@ TEST_CASE("syncToAnkiConnect updates a card matched by its id tag",
   CHECK(ok);
   CHECK_FALSE(sawAdd);
   CHECK(updateFieldsNoteId == 555);
+  CHECK(updateTagsNoteId == 555);
 }
 
 TEST_CASE("syncToAnkiConnect updates only the first note on multiple matches",

@@ -180,7 +180,7 @@ bool addOrUpdateCard(Card& card, const std::string& url, PostFn postFn,
 
   AnkiConnectReply tagsReply = ankiConnectInvoke(
       "updateNoteTags",
-      json{{"notes", json::array({noteId})}, {"tags", joinTags(tagsWithId(card))}},
+      json{{"note", noteId}, {"tags", joinTags(tagsWithId(card))}},
       url, postFn);
   if (!tagsReply.ok) {
     std::cout << "[WARN] Could not update tags for card " << card.id << ": "
